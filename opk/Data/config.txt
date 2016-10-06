@@ -51,13 +51,13 @@ Velocity blur:
 Volume:
 0.8
 Forward key:
-up
+uparrow
 Back key:
-down
+downarrow
 Left key:
-left
+leftarrow
 Right key:
-right
+rightarrow
 Jump key:
 space
 Crouch key:

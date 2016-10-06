@@ -114,7 +114,7 @@ OBJS := $(foreach f,$(OBJS),$(BINDIR)/$(f))
 
 .PHONY: clean all
 
-all : $(EXE) upload
+all : $(EXE) pack upload
 
 $(BINDIR)/%.o : %.cpp
 	@mkdir -p $(dir $@)
@@ -156,7 +156,7 @@ pack:
 	mv ./lugaru-bin ./opk/lugaru-bin
 	mksquashfs ./opk lugaru.opk -all-root -noappend -no-exports -no-xattrs
 
-upload: pack
+upload:
 	scp ./lugaru.opk root@10.1.1.2:/media/data/apps/lugaru.opk
 
 # end of makefile ...

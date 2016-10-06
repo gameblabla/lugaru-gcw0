@@ -6,4 +6,3 @@ Exec=lugaru-bin
 Icon=icon
 Terminal=true
 Categories=games;
-X-OD-NeedsDownscaling=true

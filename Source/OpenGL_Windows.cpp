@@ -1167,7 +1167,7 @@ void DoUpdate (Game & game)
 	}
 */
 	printf("LETS DRAW\n");
-	//DrawGL (game);
+	DrawGL (game);
 	printf("GOOD\n");
 }
 
