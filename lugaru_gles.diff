@@ -1,0 +1,3721 @@
+diff -r 97b303e79826 CMakeLists.txt
+--- a/CMakeLists.txt	Sun May 16 15:41:05 2010 -0500
++++ b/CMakeLists.txt	Sat Apr 23 19:22:53 2011 -0400
+@@ -2,6 +2,9 @@
+ 
+ cmake_minimum_required(VERSION 2.6)
+ 
++set(PANDORA 1)
++set(GLES 0)
++
+ set(SRCDIR "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+ set(DEPDIR "${CMAKE_CURRENT_SOURCE_DIR}/Dependencies")
+ 
+@@ -177,6 +180,24 @@
+     set(PLATFORM_LIBS "-framework Carbon -framework Cocoa -framework OpenGL -framework OpenAL")
+ endif (APPLE)
+ 
++if (PANDORA)
++  SET( CMAKE_VERBOSE_MAKEFILE "on" )
++  #set (OPENGL_INCLUDE_DIR "/usr/include/GLES")
++  add_definitions(-DPLATFORM_PANDORA=1 -DUSE_GLES=1)
++  set(PLATFORM_LIBS "-lGLES_CM -lEGL -lIMGegl -lsrv_um")
++  set(LUGARU_SRCS
++	${LUGARU_SRCS}
++	${SRCDIR}/eglport.c)
++
++  set(LUGARU_H
++	${LUGARU_H}
++	${SRCDIR}/eglport.h)
++endif (PANDORA)
++
++if (GLES)
++  add_definitions(-DUSE_GLES=1)
++endif (GLES)
++
+ # Deal with dependencies...
+ find_package(OpenGL REQUIRED)
+ # force this include dir no matter what on Windows, so we get sane headers.
+@@ -536,7 +557,7 @@
+ 		install(FILES ${SRCDIR}/mac-res/lugaru.icns DESTINATION ${APPS_DATA})
+ 		install(FILES ${SRCDIR}/mac-res/Info.plist DESTINATION ${APPS_ROOT}/Contents)
+ 	endif(APPLE)
+-	install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/lugaru DESTINATION ${CMAKE_INSTALL_PREFIX})
++	#install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/lugaru DESTINATION ${CMAKE_INSTALL_PREFIX})
+ 	if(APPLE AND LUGARU_HAS_INTERNAL_SDL)
+ 		install(FILES ${SDLDIR}/lib/macosx/libSDL-1.2.0.dylib DESTINATION ${CMAKE_INSTALL_PREFIX})
+ 	endif(APPLE AND LUGARU_HAS_INTERNAL_SDL)
+diff -r 97b303e79826 Source/Game.h
+--- a/Source/Game.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Game.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -35,6 +35,10 @@
+ #include "Quicktime.h"
+ #endif
+ 
++#if defined(PLATFORM_PANDORA)
++#include "eglport.h"
++#endif
++
+ //Jordan included glut.h
+ //#include <glut.h>
+ 
+@@ -304,9 +308,11 @@
+ 
+ static __forceinline void swap_gl_buffers(void)
+ {
+-
++#if defined(PLATFORM_PANDORA)
++    EGL_SwapBuffers();
++#else
+     SDL_GL_SwapBuffers();
+-
++#endif
+ }
+ 
+ #ifdef __GNUC__
+diff -r 97b303e79826 Source/GameDraw.cpp
+--- a/Source/GameDraw.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/GameDraw.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -179,6 +179,36 @@
+ extern int channels[100];
+ extern "C" 	void PlaySoundEx(int channel, OPENAL_SAMPLE *sptr, OPENAL_DSPUNIT *dsp, signed char startpaused);
+ 
++#if defined(USE_GLES)
++GLfloat vtxA[] = {
++    0,      0,      0.0f,
++    1,	    0, 	    0.0f,
++    1,	    1,      0.0f,
++    0, 	    1,      0.0f
++};
++
++GLfloat vtxB[] = {
++    0,		0, 	    0.0f,
++    256,	0, 	    0.0f,
++    256,	256,    0.0f,
++    0, 	    256,    0.0f
++};
++
++GLfloat vtxC[] = {
++    -1,     -1,     0.0f,
++     1,	    -1,     0.0f,
++     1,     1,      0.0f,
++    -1,     1,      0.0f
++};
++
++GLfloat texA[] = {
++    0,      0,
++    1,      0,
++    1,      1,
++    0,      1
++};
++#endif
++
+ /*********************> DrawGLScene() <*****/
+ long long Game::MD5_string (char *string){
+ 	char temp[256]="";
+@@ -318,9 +348,19 @@
+ 			if(texcoordheight>1)texcoordheight=1;
+ 		}
+ 
++#if defined(USE_GLES)
++        GLfloat texB[] = {
++            0,              0,
++            texcoordwidth,  0,
++            texcoordwidth,  texcoordheight,
++            0,              texcoordheight
++        };
++#endif
++
++#if !defined(USE_GLES)
+ 		glDrawBuffer(GL_BACK);
+ 		glReadBuffer(GL_BACK);
+-
++#endif
+ 		/*if(environment==desertenvironment)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, (float)(abs(Random()%100))/50 );
+ 		else glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0);
+ 		*/
+@@ -366,13 +406,17 @@
+ 		}
+ 		SetUpLight(&light,0);
+ 		glPushMatrix();
++#if !defined(USE_GLES)
+ 		if(environment==desertenvironment&&detail==2)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, blurness+.4 );
++#endif
+ 		if(environment==desertenvironment){
+ 			glRotatef((float)(abs(Random()%100))/1000,1,0,0);
+ 			glRotatef((float)(abs(Random()%100))/1000,0,1,0);
+ 		}	
+ 		skybox.draw();
++#if !defined(USE_GLES)
+ 		glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0);
++#endif
+ 		glPopMatrix();
+ 		glTranslatef(-viewer.x,-viewer.y,-viewer.z);
+ 		frustum.GetFrustum();
+@@ -626,11 +670,26 @@
+ 
+ 			for(k=0;k<numplayers;k++){
+ 				if(player[k].numwaypoints>1){
++#if defined(USE_GLES)
++                    GLfloat vtx[player[k].numwaypoints*3];
++
++                    for(i=0;i<player[k].numwaypoints;i++){
++                        vtx[(i*3)+0] = player[k].waypoints[i].x;
++                        vtx[(i*3)+1] = player[k].waypoints[i].y+.5;
++                        vtx[(i*3)+2] = player[k].waypoints[i].z;
++                    }
++
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glVertexPointer(3, GL_FLOAT, 0, vtx);
++                    glDrawArrays(GL_LINE_LOOP, 0, player[k].numwaypoints);
++                    glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 					glBegin(GL_LINE_LOOP);
+ 					for(i=0;i<player[k].numwaypoints;i++){
+ 						glVertex3f(player[k].waypoints[i].x,player[k].waypoints[i].y+.5,player[k].waypoints[i].z);
+ 					}
+ 					glEnd();
++#endif
+ 				}
+ 			}
+ 
+@@ -640,18 +699,41 @@
+ 				for(k=0;k<numpathpoints;k++){
+ 					if(numpathpointconnect[k]){
+ 						for(i=0;i<numpathpointconnect[k];i++){
++#if defined(USE_GLES)
++                            GLfloat vtx[] = {
++                                pathpoint[k].x,                      pathpoint[k].y+.5,                      pathpoint[k].z,
++                                pathpoint[pathpointconnect[k][i]].x, pathpoint[pathpointconnect[k][i]].y+.5, pathpoint[pathpointconnect[k][i]].z
++                            };
++
++                            glEnableClientState(GL_VERTEX_ARRAY);
++                            glVertexPointer(3, GL_FLOAT, 0, vtx);
++                            glDrawArrays(GL_LINE_LOOP, 0, 2);
++                            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 							glBegin(GL_LINE_LOOP);
+ 							glVertex3f(pathpoint[k].x,pathpoint[k].y+.5,pathpoint[k].z);
+ 							glVertex3f(pathpoint[pathpointconnect[k][i]].x,pathpoint[pathpointconnect[k][i]].y+.5,pathpoint[pathpointconnect[k][i]].z);					
+ 							glEnd();
++#endif
+ 						}
+ 					}
+ 				}
+ 				glColor4f(1,1,1,1);
+ 				glPointSize(4);
++#if defined(USE_GLES)
++                GLfloat vtx[] = {
++                    pathpoint[pathpointselected].x, pathpoint[pathpointselected].y+.5, pathpoint[pathpointselected].z
++                };
++
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glVertexPointer(3, GL_FLOAT, 0, vtx);
++                glDrawArrays(GL_POINTS, 0, 1);
++                glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 				glBegin(GL_POINTS);
+ 				glVertex3f(pathpoint[pathpointselected].x,pathpoint[pathpointselected].y+.5,pathpoint[pathpointselected].z);
+ 				glEnd();
++#endif
+ 			}
+ 		}
+ 
+@@ -1120,12 +1202,19 @@
+ 					glEnable(GL_BLEND);
+ 
+ 					glColor4f(dialogueboxcolor[whichdialogue][indialogue][0],dialogueboxcolor[whichdialogue][indialogue][1],dialogueboxcolor[whichdialogue][indialogue][2],0.7);
++#if defined(USE_GLES)
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glVertexPointer(3, GL_FLOAT, 0, vtxA);
++                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++                    glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 					glBegin(GL_QUADS);
+ 					glVertex3f(0,		0, 	 0.0f);
+ 					glVertex3f(1,	0, 	 0.0f);
+ 					glVertex3f(1,	1, 0.0f);
+ 					glVertex3f(0, 	1, 0.0f);
+ 					glEnd();
++#endif
+ 					glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 					glPopMatrix();										// Restore The Old Projection Matrix
+ 					glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1304,12 +1393,19 @@
+ 			glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			glEnable(GL_BLEND);
+ 			glColor4f(0,0,0,.5);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0, 	 0.0f);
+ 			glVertex3f(256,	0, 	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0, 	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1351,12 +1447,19 @@
+ 				}
+ 			}
+ 			if(console)glColor4f(.7,0,0,.2);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0, 	 0.0f);
+ 			glVertex3f(256,	0, 	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0, 	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1387,12 +1490,19 @@
+ 			glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			glEnable(GL_BLEND);
+ 			glColor4f(flashr,flashg,flashb,flashamount);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0, 	 0.0f);
+ 			glVertex3f(256,	0, 	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0, 	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1432,7 +1542,11 @@
+ 			mapviewdist=20000;
+ 
+ 			glDisable(GL_DEPTH_TEST);
++#if defined(USE_GLES)
++			glColor4f (1.0, 1.0, 1.0, 1.0); // no coloring
++#else
+ 			glColor3f (1.0, 1.0, 1.0); // no coloring
++#endif
+ 
+ 			glEnable(GL_TEXTURE_2D);
+ 			glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+@@ -1531,6 +1645,17 @@
+ 						glTranslatef(objects.position[i].x/terrain.scale/256*-2+1,objects.position[i].z/terrain.scale/256*2-1,0);
+ 						glRotatef(objects.rotation[i],0,0,1);
+ 						glScalef(.003,.003,.003);
++#if defined(USE_GLES)
++                        glEnableClientState(GL_VERTEX_ARRAY);
++                        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                        glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                        glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                        glDisableClientState(GL_VERTEX_ARRAY);
++                        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 						glBegin(GL_QUADS);
+ 						glTexCoord2f(0,0);
+ 						glVertex3f(-1,		-1, 	 0.0f);
+@@ -1541,6 +1666,7 @@
+ 						glTexCoord2f(0,1);
+ 						glVertex3f(-1, 	1, 0.0f);
+ 						glEnd();
++#endif
+ 						glPopMatrix();
+ 					}
+ 				}
+@@ -1553,6 +1679,17 @@
+ 						glTranslatef(objects.position[i].x/terrain.scale/256*-2+1,objects.position[i].z/terrain.scale/256*2-1,0);
+ 						glRotatef(objects.rotation[i],0,0,1);
+ 						glScalef(.01*objects.scale[i],.01*objects.scale[i],.01*objects.scale[i]);
++#if defined(USE_GLES)
++                        glEnableClientState(GL_VERTEX_ARRAY);
++                        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                        glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                        glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                        glDisableClientState(GL_VERTEX_ARRAY);
++                        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 						glBegin(GL_QUADS);
+ 						glTexCoord2f(0,0);
+ 						glVertex3f(-1,		-1, 	 0.0f);
+@@ -1563,6 +1700,7 @@
+ 						glTexCoord2f(0,1);
+ 						glVertex3f(-1, 	1, 0.0f);
+ 						glEnd();
++#endif
+ 						glPopMatrix();
+ 					}
+ 				}
+@@ -1574,6 +1712,17 @@
+ 					glPushMatrix();
+ 					glTranslatef(boundary[i].x/terrain.scale/256*-2+1,boundary[i].z/terrain.scale/256*2-1,0);
+ 					glScalef(.002,.002,.002);
++#if defined(USE_GLES)
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                    glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                    glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                    glDisableClientState(GL_VERTEX_ARRAY);
++                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 					glBegin(GL_QUADS);
+ 					glTexCoord2f(0,0);
+ 					glVertex3f(-1,		-1, 	 0.0f);
+@@ -1584,6 +1733,7 @@
+ 					glTexCoord2f(0,1);
+ 					glVertex3f(-1, 	1, 0.0f);
+ 					glEnd();
++#endif
+ 					glPopMatrix();
+ 				}
+ 			}
+@@ -1601,6 +1751,17 @@
+ 					glTranslatef(player[i].coords.x/terrain.scale/256*-2+1,player[i].coords.z/terrain.scale/256*2-1,0);
+ 					glRotatef(player[i].rotation+180,0,0,1);
+ 					glScalef(.005,.005,.005);
++#if defined(USE_GLES)
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                    glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                    glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                    glDisableClientState(GL_VERTEX_ARRAY);
++                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 					glBegin(GL_QUADS);
+ 					glTexCoord2f(0,0);
+ 					glVertex3f(-1,		-1, 	 0.0f);
+@@ -1611,6 +1772,7 @@
+ 					glTexCoord2f(0,1);
+ 					glVertex3f(-1, 	1, 0.0f);
+ 					glEnd();
++#endif
+ 					/*glBegin(GL_TRIANGLES);
+ 					glTexCoord2f(0,0);
+ 					glVertex3f(-1,		-1, 	 0.0f);
+@@ -1667,12 +1829,19 @@
+ 			glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			glEnable(GL_BLEND);
+ 			glColor4f(0,0,0,.7);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0, 	 0.0f);
+ 			glVertex3f(256,	0, 	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0, 	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1684,8 +1853,11 @@
+ 
+ 			//logo
+ 			glDisable(GL_DEPTH_TEST);
++#if defined(USE_GLES)
++			glColor4f (1.0, 1.0, 1.0, 1.0); // no coloring
++#else
+ 			glColor3f (1.0, 1.0, 1.0); // no coloring
+-
++#endif
+ 			glEnable(GL_TEXTURE_2D);
+ 			/*glBindTexture( GL_TEXTURE_2D, logotexture);
+ 			glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+@@ -1759,12 +1931,19 @@
+ 			glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			glEnable(GL_BLEND);
+ 			glColor4f(0,0,0,.4);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0, 	 0.0f);
+ 			glVertex3f(256,	0, 	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0, 	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -1776,7 +1955,11 @@
+ 
+ 			//logo
+ 			glDisable(GL_DEPTH_TEST);
++#if defined(USE_GLES)
++			glColor4f (1.0, 1.0, 1.0, 1.0); // no coloring
++#else
+ 			glColor3f (1.0, 1.0, 1.0); // no coloring
++#endif
+ 
+ 			glEnable(GL_TEXTURE_2D);
+ 			/*glBindTexture( GL_TEXTURE_2D, logotexture);
+@@ -1963,15 +2146,16 @@
+ 			glFinish();
+ 			if(!drawtoggle||drawmode!=realmotionblurmode||(drawtoggle==2||change==1)){
+ 				if(screentexture){
+-
++#if !defined(USE_GLES)
+ 					glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+ 					GLfloat subtractColor[4] = { 0.5, 0.5, 0.5, 0.0 };
+ 					glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, subtractColor);
+ 					//glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_SUBTRACT);
++
+ 					glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
+ 					glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_CONSTANT_EXT);
+ 					glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
+-
++#endif
+ 					glBindTexture( GL_TEXTURE_2D, screentexture);
+ 					glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, texviewwidth, texviewheight);		
+ 				}
+@@ -2005,12 +2189,18 @@
+ 		if(drawmode!=normalmode){
+ 			glDisable(GL_DEPTH_TEST);
+ 			if(drawmode==motionblurmode){
++#if !defined(USE_GLES)
+ 				glDrawBuffer(GL_FRONT);
+ 				glReadBuffer(GL_BACK);
++#endif
+ 				//myassert(glGetError() == GL_NO_ERROR);
+ 				//glFlush();
+ 			}
++#if defined(USE_GLES)
++			glColor4f (1.0, 1.0, 1.0, 1.0); // no coloring
++#else
+ 			glColor3f (1.0, 1.0, 1.0); // no coloring
++#endif
+ 
+ 			glEnable(GL_TEXTURE_2D);
+ 			glBindTexture( GL_TEXTURE_2D, screentexture);
+@@ -2036,6 +2226,17 @@
+ 				//glColor4f(1,1,1,fast_sqrt(multiplier)*2.9*motionbluramount);
+ 				glColor4f(1,1,1,motionbluramount);
+ 				glPushMatrix();
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2046,6 +2247,7 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 			}
+ 			if(drawmode==realmotionblurmode){
+@@ -2055,6 +2257,17 @@
+ 				glBindTexture( GL_TEXTURE_2D, screentexture);
+ 				glColor4f(1,1,1,.5);
+ 				glPushMatrix();
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2065,10 +2278,22 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				glBindTexture( GL_TEXTURE_2D, screentexture2);
+ 				glColor4f(1,1,1,.5);
+ 				glPushMatrix();
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2079,6 +2304,7 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			}
+@@ -2091,6 +2317,17 @@
+ 				glDisable(GL_BLEND);
+ 				glPushMatrix();
+ 				glScalef(1,1,1);
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2101,6 +2338,7 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				if(crosseyedness){
+ 					glColor4f(1,1,1,.5);
+@@ -2108,6 +2346,17 @@
+ 					glPushMatrix();
+ 					glTranslatef(.015*crosseyedness,0,0);
+ 					glScalef(1,1,1);
++#if defined(USE_GLES)
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                    glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                    glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                    glDisableClientState(GL_VERTEX_ARRAY);
++                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 					glBegin(GL_QUADS);
+ 					glTexCoord2f(0,0);
+ 					glVertex3f(-1,		-1, 	 0.0f);
+@@ -2118,6 +2367,7 @@
+ 					glTexCoord2f(0,texcoordheight);
+ 					glVertex3f(-1, 	1, 0.0f);
+ 					glEnd();
++#endif
+ 					glPopMatrix();
+ 				}
+ 			}
+@@ -2127,6 +2377,17 @@
+ 				glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+ 				glPushMatrix();
+ 				glTranslatef(.01,0,0);
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2137,9 +2398,21 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				glPushMatrix();
+ 				glTranslatef(-.01,0,0);
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2150,9 +2423,21 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				glPushMatrix();
+ 				glTranslatef(.0,.01,0);
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2163,9 +2448,21 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 				glPushMatrix();
+ 				glTranslatef(0,-.01,0);
++#if defined(USE_GLES)
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_QUADS);
+ 				glTexCoord2f(0,0);
+ 				glVertex3f(-1,		-1, 	 0.0f);
+@@ -2176,6 +2473,7 @@
+ 				glTexCoord2f(0,texcoordheight);
+ 				glVertex3f(-1, 	1, 0.0f);
+ 				glEnd();
++#endif
+ 				glPopMatrix();
+ 			}
+ 			if(drawmode==radialzoommode){
+@@ -2184,6 +2482,17 @@
+ 					glColor4f(1,1,1,1/((float)i+1));
+ 					glPushMatrix();
+ 					glScalef(1+(float)i*.01,1+(float)i*.01,1);
++#if defined(USE_GLES)
++                    glEnableClientState(GL_VERTEX_ARRAY);
++                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                    glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                    glTexCoordPointer(2, GL_FLOAT, 0, texB);
++                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                    glDisableClientState(GL_VERTEX_ARRAY);
++                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 					glBegin(GL_QUADS);
+ 					glTexCoord2f(0,0);
+ 					glVertex3f(-1,		-1, 	 0.0f);
+@@ -2194,6 +2503,7 @@
+ 					glTexCoord2f(0,texcoordheight);
+ 					glVertex3f(-1, 	1, 0.0f);
+ 					glEnd();
++#endif
+ 					glPopMatrix();
+ 				}
+ 			}
+@@ -2243,8 +2553,10 @@
+         // !!! FIXME: hack: clamp framerate in menu so text input works correctly on fast systems.
+         SDL_Delay(15);
+ 
++#if !defined(USE_GLES)
+ 		glDrawBuffer(GL_BACK);
+ 		glReadBuffer(GL_BACK);
++#endif
+ 		glTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+ 		ReSizeGLScene(90,.1f);
+ 
+@@ -2384,6 +2696,17 @@
+ 						glDisable(GL_TEXTURE_2D);
+ 						glPushMatrix();
+ 							//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++                            glEnableClientState(GL_VERTEX_ARRAY);
++                            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                            glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                            glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                            glDisableClientState(GL_VERTEX_ARRAY);
++                            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 							glBegin(GL_QUADS);
+ 							glTexCoord2f(0,0);
+ 							glVertex3f(-1,		-1, 	 0.0f);
+@@ -2394,6 +2717,7 @@
+ 							glTexCoord2f(0,1);
+ 							glVertex3f(-1, 	1, 0.0f);
+ 							glEnd();
++#endif
+ 						glPopMatrix();
+ 						glEnable(GL_BLEND);
+ 						glColor4f(0.4,0.4,0.4,1.0);
+@@ -2403,6 +2727,17 @@
+ 						glBindTexture( GL_TEXTURE_2D, Mainmenuitems[4]);
+ 						glPushMatrix();
+ 							//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++                            glEnableClientState(GL_VERTEX_ARRAY);
++                            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                            glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                            glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                            glDisableClientState(GL_VERTEX_ARRAY);
++                            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 							glBegin(GL_QUADS);
+ 							glTexCoord2f(0,0);
+ 							glVertex3f(-1,		-1, 	 0.0f);
+@@ -2413,6 +2748,7 @@
+ 							glTexCoord2f(0,1);
+ 							glVertex3f(-1, 	1, 0.0f);
+ 							glEnd();
++#endif
+ 						glPopMatrix();
+ 					glPopMatrix();
+ 				glPopMatrix();
+@@ -3307,6 +3643,17 @@
+ 										glDisable(GL_TEXTURE_2D);
+ 										glPushMatrix();
+ 											//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++                                            glEnableClientState(GL_VERTEX_ARRAY);
++                                            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                            glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                                            glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                            glDisableClientState(GL_VERTEX_ARRAY);
++                                            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 											glBegin(GL_QUADS);
+ 											glTexCoord2f(0,0);
+ 											glVertex3f(-1,		-1, 	 0.0f);
+@@ -3317,6 +3664,7 @@
+ 											glTexCoord2f(0,1);
+ 											glVertex3f(-1, 	1, 0.0f);
+ 											glEnd();
++#endif
+ 										glPopMatrix();
+ 										glEnable(GL_BLEND);
+ 										glColor4f(0.4,0.4,0.4,1.0);
+@@ -3326,6 +3674,17 @@
+ 										glBindTexture( GL_TEXTURE_2D, Mainmenuitems[4]);
+ 										glPushMatrix();
+ 											//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++                                            glEnableClientState(GL_VERTEX_ARRAY);
++                                            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                            glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                                            glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                            glDisableClientState(GL_VERTEX_ARRAY);
++                                            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 											glBegin(GL_QUADS);
+ 											glTexCoord2f(0,0);
+ 											glVertex3f(-1,		-1, 	 0.0f);
+@@ -3336,6 +3695,7 @@
+ 											glTexCoord2f(0,1);
+ 											glVertex3f(-1, 	1, 0.0f);
+ 											glEnd();
++#endif
+ 										glPopMatrix();
+ 									glPopMatrix();
+ 								glPopMatrix();
+@@ -3402,6 +3762,24 @@
+ 										glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+ 										glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 										glPushMatrix();
++#if defined(USE_GLES)
++                                            GLfloat vtx[] = {
++                                                startx[j]+movex[j]*transition,	starty[j]+movey[j]*transition,  0.0f,
++                                                endx[j]+movex[j]*transition,	starty[j]+movey[j]*transition,  0.0f,
++                                                endx[j]+movex[j]*transition,	endy[j]+movey[j]*transition,    0.0f,
++                                                startx[j]+movex[j]*transition, 	endy[j]+movey[j]*transition,    0.0f
++                                            };
++
++                                            glEnableClientState(GL_VERTEX_ARRAY);
++                                            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                            glVertexPointer(3, GL_FLOAT, 0, vtx);
++                                            glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                            glDisableClientState(GL_VERTEX_ARRAY);
++                                            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 											glBegin(GL_QUADS);
+ 											glTexCoord2f(0,0);
+ 											glVertex3f(startx[j]+movex[j]*transition,	starty[j]+movey[j]*transition, 	 0.0f);
+@@ -3412,6 +3790,7 @@
+ 											glTexCoord2f(0,1);
+ 											glVertex3f(startx[j]+movex[j]*transition, 	endy[j]+movey[j]*transition, 0.0f);
+ 											glEnd();
++#endif
+ 										glPopMatrix();
+ 										glEnable(GL_BLEND);
+ 										//glDisable(GL_ALPHA_TEST);
+@@ -3423,6 +3802,24 @@
+ 												glColor4f(1,1,1,(1-((float)i)/10-(1-selectedlong[j]))*.25);
+ 												glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 												glPushMatrix();
++#if defined(USE_GLES)
++                                                    GLfloat vtx[] = {
++                                                        startx[j]-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	starty[j]-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition,   0.0f,
++                                                        endx[j]+((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	    starty[j]-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition,   0.0f,
++                                                        endx[j]+((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	    endy[j]+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition,     0.0f,
++                                                        startx[j]-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,   endy[j]+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition,     0.0f
++                                                    };
++
++                                                    glEnableClientState(GL_VERTEX_ARRAY);
++                                                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                                    glVertexPointer(3, GL_FLOAT, 0, vtx);
++                                                    glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                                    glDisableClientState(GL_VERTEX_ARRAY);
++                                                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 													glBegin(GL_QUADS);
+ 													glTexCoord2f(0,0);
+ 													glVertex3f(startx[j]-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	starty[j]-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 	 0.0f);
+@@ -3433,6 +3830,7 @@
+ 													glTexCoord2f(0,1);
+ 													glVertex3f(startx[j]-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition, endy[j]+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f);
+ 													glEnd();
++#endif
+ 												glPopMatrix();
+ 											}
+ 										}
+@@ -3572,6 +3970,24 @@
+ 															if(!(j>7+accountcampaignchoicesmade[accountactive]+campaignchoicenum)){
+ 																glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 																glPushMatrix();
++#if defined(USE_GLES)
++                                                                    GLfloat vtx[] = {
++                                                                        linestart.x-offset.x*startsize,	linestart.y-offset.y*startsize,     0.0f,
++                                                                        linestart.x+offset.x*startsize,	linestart.y+offset.y*startsize,     0.0f,
++                                                                        lineend.x+offset.x*endsize,		lineend.y+offset.y*endsize,         0.0f,
++                                                                        lineend.x-offset.x*endsize,     lineend.y-offset.y*endsize,         0.0f
++                                                                    };
++
++                                                                    glEnableClientState(GL_VERTEX_ARRAY);
++                                                                    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                                                    glVertexPointer(3, GL_FLOAT, 0, vtx);
++                                                                    glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                                                    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                                                    glDisableClientState(GL_VERTEX_ARRAY);
++                                                                    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 																	glBegin(GL_QUADS);
+ 																	glTexCoord2f(0,0);
+ 																	glVertex3f(linestart.x-offset.x*startsize,	linestart.y-offset.y*startsize, 	 0.0f);
+@@ -3582,6 +3998,7 @@
+ 																	glTexCoord2f(0,1);
+ 																	glVertex3f(lineend.x-offset.x*endsize, 		lineend.y-offset.y*endsize, 0.0f);
+ 																	glEnd();
++#endif
+ 																glPopMatrix();
+ 															}
+ 															glEnable(GL_TEXTURE_2D);
+@@ -3606,6 +4023,24 @@
+ 														{
+ 															glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 															glPushMatrix();
++#if defined(USE_GLES)
++                                                                GLfloat vtx[] = {
++                                                                    midpoint.x-itemsize+movex[j]*transition,	midpoint.y-itemsize+movey[j]*transition,    0.0f,
++                                                                    midpoint.x+itemsize+movex[j]*transition,	midpoint.y-itemsize+movey[j]*transition,    0.0f,
++                                                                    midpoint.x+itemsize+movex[j]*transition,	midpoint.y+itemsize+movey[j]*transition,    0.0f,
++                                                                    midpoint.x-itemsize+movex[j]*transition, 	midpoint.y+itemsize+movey[j]*transition,    0.0f
++                                                                };
++
++                                                                glEnableClientState(GL_VERTEX_ARRAY);
++                                                                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                                                glVertexPointer(3, GL_FLOAT, 0, vtx);
++                                                                glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                                                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                                                glDisableClientState(GL_VERTEX_ARRAY);
++                                                                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 																glBegin(GL_QUADS);
+ 																glTexCoord2f(0,0);
+ 																glVertex3f(midpoint.x-itemsize+movex[j]*transition,	midpoint.y-itemsize+movey[j]*transition, 	 0.0f);
+@@ -3616,6 +4051,7 @@
+ 																glTexCoord2f(0,1);
+ 																glVertex3f(midpoint.x-itemsize+movex[j]*transition, 	midpoint.y+itemsize+movey[j]*transition, 0.0f);
+ 																glEnd();
++#endif
+ 															glPopMatrix();
+ 															glEnable(GL_BLEND);
+ 															//glDisable(GL_ALPHA_TEST);
+@@ -3627,6 +4063,24 @@
+ 																	glColor4f(1,0,0,(1-((float)i)/10-(1-selectedlong[j]))*.25);
+ 																	glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 																	glPushMatrix();
++#if defined(USE_GLES)
++                                                                        GLfloat vtx[] = {
++                                                                            midpoint.x-itemsize-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition, midpoint.y-itemsize-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f,
++                                                                            midpoint.x+itemsize+((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	midpoint.y-itemsize-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f,
++                                                                            midpoint.x+itemsize+((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	midpoint.y+itemsize+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f,
++                                                                            midpoint.x-itemsize-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition, midpoint.y+itemsize+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f
++                                                                        };
++
++                                                                        glEnableClientState(GL_VERTEX_ARRAY);
++                                                                        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                                                        glVertexPointer(3, GL_FLOAT, 0, vtx);
++                                                                        glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                                                        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                                                        glDisableClientState(GL_VERTEX_ARRAY);
++                                                                        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 																		glBegin(GL_QUADS);
+ 																		glTexCoord2f(0,0);
+ 																		glVertex3f(midpoint.x-itemsize-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition,	midpoint.y-itemsize-((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 	 0.0f);
+@@ -3637,6 +4091,7 @@
+ 																		glTexCoord2f(0,1);
+ 																		glVertex3f(midpoint.x-itemsize-((float)i)*1/2+offsetx[j]*((float)i)/2+movex[j]*transition, midpoint.y+itemsize+((float)i)*1/2+offsety[j]*((float)i)/2+movey[j]*transition, 0.0f);
+ 																		glEnd();
++#endif
+ 																	glPopMatrix();
+ 																}
+ 															}
+@@ -3730,6 +4185,17 @@
+ 											glBindTexture( GL_TEXTURE_2D, cursortexture);
+ 											glPushMatrix();
+ 												//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++                                                glEnableClientState(GL_VERTEX_ARRAY);
++                                                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                                                glVertexPointer(3, GL_FLOAT, 0, vtxC);
++                                                glTexCoordPointer(2, GL_FLOAT, 0, texA);
++                                                glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++                                                glDisableClientState(GL_VERTEX_ARRAY);
++                                                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 												glBegin(GL_QUADS);
+ 												glTexCoord2f(0,0);
+ 												glVertex3f(-1,		-1, 	 0.0f);
+@@ -3740,6 +4206,7 @@
+ 												glTexCoord2f(0,1);
+ 												glVertex3f(-1, 	1, 0.0f);
+ 												glEnd();
++#endif
+ 											glPopMatrix();
+ 										glPopMatrix();
+ 									glPopMatrix();
+@@ -3769,12 +4236,19 @@
+ 											glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 											glEnable(GL_BLEND);
+ 											glColor4f(flashr,flashg,flashb,flashamount);
++#if defined(USE_GLES)
++                                            glEnableClientState(GL_VERTEX_ARRAY);
++                                            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++                                            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++                                            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 											glBegin(GL_QUADS);
+ 											glVertex3f(0,		0, 	 0.0f);
+ 											glVertex3f(256,	0, 	 0.0f);
+ 											glVertex3f(256,	256, 0.0f);
+ 											glVertex3f(0, 	256, 0.0f);
+ 											glEnd();
++#endif
+ 											glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 										glPopMatrix();										// Restore The Old Projection Matrix
+ 									glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -3798,9 +4272,12 @@
+ 		swap_gl_buffers();
+   }
+ 
++
+ 	//myassert(glGetError() == GL_NO_ERROR);
++#if !defined(USE_GLES)
+ 	glDrawBuffer(GL_BACK);
+ 	glReadBuffer(GL_BACK);
++#endif
+ 	//glFlush();
+ 
+ 	weapons.DoStuff();
+diff -r 97b303e79826 Source/GameInitDispose.cpp
+--- a/Source/GameInitDispose.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/GameInitDispose.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -711,6 +711,30 @@
+ 		*/
+ 		glPushMatrix();
+ 		//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++        GLfloat vtxA[] = {
++            -1,     -1,	    0.0f,
++             1,     -1,	    0.0f,
++             1,      1,     0.0f,
++            -1,      1,     0.0f
++        };
++        GLfloat texA[] = {
++            .1-loadprogress/100,    0+loadprogress/100+.3,
++            .1-loadprogress/100,    0+loadprogress/100+.3,
++            .1-loadprogress/100,    1+loadprogress/100+.3,
++            .1-loadprogress/100,    1+loadprogress/100+.3
++        };
++
++        glEnableClientState(GL_VERTEX_ARRAY);
++        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        glVertexPointer(3, GL_FLOAT, 0, vtxA);
++        glTexCoordPointer(2, GL_FLOAT, 0, texA);
++        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 		glBegin(GL_QUADS);
+ 		glTexCoord2f(.1-loadprogress/100,0+loadprogress/100+.3);
+ 		glVertex3f(-1,		-1,	 0.0f);
+@@ -721,10 +745,29 @@
+ 		glTexCoord2f(.1-loadprogress/100,1+loadprogress/100+.3);
+ 		glVertex3f(-1,	1, 0.0f);
+ 		glEnd();
++#endif
+ 		glPopMatrix();
+ 		glEnable(GL_BLEND);
+ 		glPushMatrix();
+ 		//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++        GLfloat texB[] = {
++            .4-loadprogress/100,    0+loadprogress/100,
++            .4-loadprogress/100,    0+loadprogress/100,
++            .4-loadprogress/100,    1+loadprogress/100,
++            .4-loadprogress/100,    1+loadprogress/100
++        };
++
++        glEnableClientState(GL_VERTEX_ARRAY);
++        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        glVertexPointer(3, GL_FLOAT, 0, vtxA);
++        glTexCoordPointer(2, GL_FLOAT, 0, texB);
++        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 		glBegin(GL_QUADS);
+ 		glTexCoord2f(.4+loadprogress/100,0+loadprogress/100);
+ 		glVertex3f(-1,		-1,	 0.0f);
+@@ -735,6 +778,7 @@
+ 		glTexCoord2f(.4+loadprogress/100,1+loadprogress/100);
+ 		glVertex3f(-1,	1, 0.0f);
+ 		glEnd();
++#endif
+ 		glPopMatrix();
+ 		glDisable(GL_TEXTURE_2D);
+ 		glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+@@ -774,6 +818,24 @@
+ 		*/
+ 		glPushMatrix();
+ 		//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++        GLfloat texC[] = {
++            0+.5,   0+.5,
++            1+.5,   0+.5,
++            1+.5,   1+.5,
++            0+.5,   1+.5
++        };
++
++        glEnableClientState(GL_VERTEX_ARRAY);
++        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        glVertexPointer(3, GL_FLOAT, 0, vtxA);
++        glTexCoordPointer(2, GL_FLOAT, 0, texC);
++        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 		glBegin(GL_QUADS);
+ 		glTexCoord2f(0+.5,0+.5);
+ 		glVertex3f(-1,		-1,	 0.0f);
+@@ -784,6 +846,7 @@
+ 		glTexCoord2f(0+.5,1+.5);
+ 		glVertex3f(-1,	1, 0.0f);
+ 		glEnd();
++#endif
+ 		glPopMatrix();
+ 		glDisable(GL_TEXTURE_2D);
+ 		glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+@@ -815,6 +878,24 @@
+ 		glColor4f(loadprogress/100,loadprogress/100,loadprogress/100,.4);
+ 		glPushMatrix();
+ 		//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++        GLfloat texD[] = {
++            0+.2,   0+.8,
++            1+.2,   0+.8,
++            1+.2,   1+.8,
++            0+.2,   1+.8
++        };
++
++        glEnableClientState(GL_VERTEX_ARRAY);
++        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        glVertexPointer(3, GL_FLOAT, 0, vtxA);
++        glTexCoordPointer(2, GL_FLOAT, 0, texD);
++        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 		glBegin(GL_QUADS);
+ 		glTexCoord2f(0+.2,0+.8);
+ 		glVertex3f(-1,		-1,	 0.0f);
+@@ -825,6 +906,7 @@
+ 		glTexCoord2f(0+.2,1+.8);
+ 		glVertex3f(-1,	1, 0.0f);
+ 		glEnd();
++#endif
+ 		glPopMatrix();
+ 		glDisable(GL_TEXTURE_2D);
+ 		glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+@@ -866,12 +948,28 @@
+ 			glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+ 			glEnable(GL_BLEND);
+ 			glColor4f(flashr,flashg,flashb,flashamount);
++#if defined(USE_GLES)
++            GLfloat vtxB[] = {
++                0,		0,	    0.0f,
++                256,	0,	    0.0f,
++                256,	256,    0.0f,
++                0,      256,    0.0f
++            };
++
++            glEnableClientState(GL_VERTEX_ARRAY);
++
++            glVertexPointer(3, GL_FLOAT, 0, vtxB);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_QUADS);
+ 			glVertex3f(0,		0,	 0.0f);
+ 			glVertex3f(256,	0,	 0.0f);
+ 			glVertex3f(256,	256, 0.0f);
+ 			glVertex3f(0,	256, 0.0f);
+ 			glEnd();
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 			glPopMatrix();										// Restore The Old Projection Matrix
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -933,6 +1031,30 @@
+ 	*/
+ 	glPushMatrix();
+ 	//glScalef(.25,.25,.25);
++#if defined(USE_GLES)
++    GLfloat vtx[] = {
++        -1,     -1,	    0.0f,
++         1,     -1,	    0.0f,
++         1,      1,     0.0f,
++        -1,      1,     0.0f
++    };
++    GLfloat tex[] = {
++        0,    0,
++        1,    0,
++        1,    1,
++        0,    1
++    };
++
++    glEnableClientState(GL_VERTEX_ARRAY);
++    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++    glVertexPointer(3, GL_FLOAT, 0, vtx);
++    glTexCoordPointer(2, GL_FLOAT, 0, tex);
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++    glDisableClientState(GL_VERTEX_ARRAY);
++    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 	glBegin(GL_QUADS);
+ 	glTexCoord2f(0,0);
+ 	glVertex3f(-1,		-1,	 0.0f);
+@@ -943,6 +1065,7 @@
+ 	glTexCoord2f(0,1);
+ 	glVertex3f(-1,	1, 0.0f);
+ 	glEnd();
++#endif
+ 	glPopMatrix();
+ 	glDisable(GL_TEXTURE_2D);
+ 	glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+diff -r 97b303e79826 Source/MacCompatibility.cpp
+--- a/Source/MacCompatibility.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/MacCompatibility.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -207,7 +207,11 @@
+     static char *prefpath = NULL;
+     if (prefpath == NULL)
+     {
++#if defined(PLATFORM_PANDORA)
++        const char *homedir = getenv("PWD");
++#else
+         const char *homedir = getenv("HOME");
++#endif
+         if (homedir == NULL)
+             homedir = getUserDirByUID();
+         if (homedir == NULL)
+diff -r 97b303e79826 Source/Models.cpp
+--- a/Source/Models.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Models.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -289,64 +289,69 @@
+ 	static int j;
+ 	if(!flat)
+ 		for(i=0;i<TriangleNum;i++){
+-			j=i*24;
++			j=i*MAX_ARRAY_STRIDE;
+ 			vArray[j+0]=Triangles[i].gx[0];
+ 			vArray[j+1]=Triangles[i].gy[0];
+ 			vArray[j+2]=normals[Triangles[i].vertex[0]].x;
+ 			vArray[j+3]=normals[Triangles[i].vertex[0]].y;
+ 			vArray[j+4]=normals[Triangles[i].vertex[0]].z;
+-			vArray[j+5]=vertex[Triangles[i].vertex[0]].x;
+-			vArray[j+6]=vertex[Triangles[i].vertex[0]].y;
+-			vArray[j+7]=vertex[Triangles[i].vertex[0]].z;
++			vArray[j+5]=1.0f;
++			vArray[j+6]=vertex[Triangles[i].vertex[0]].x;
++			vArray[j+7]=vertex[Triangles[i].vertex[0]].y;
++			vArray[j+8]=vertex[Triangles[i].vertex[0]].z;
+ 
+-			vArray[j+8]=Triangles[i].gx[1];
+-			vArray[j+9]=Triangles[i].gy[1];
+-			vArray[j+10]=normals[Triangles[i].vertex[1]].x;
+-			vArray[j+11]=normals[Triangles[i].vertex[1]].y;
+-			vArray[j+12]=normals[Triangles[i].vertex[1]].z;
+-			vArray[j+13]=vertex[Triangles[i].vertex[1]].x;
+-			vArray[j+14]=vertex[Triangles[i].vertex[1]].y;
+-			vArray[j+15]=vertex[Triangles[i].vertex[1]].z;
++			vArray[j+9]=Triangles[i].gx[1];
++			vArray[j+10]=Triangles[i].gy[1];
++			vArray[j+11]=normals[Triangles[i].vertex[1]].x;
++			vArray[j+12]=normals[Triangles[i].vertex[1]].y;
++			vArray[j+13]=normals[Triangles[i].vertex[1]].z;
++			vArray[j+14]=1.0f;
++			vArray[j+15]=vertex[Triangles[i].vertex[1]].x;
++			vArray[j+16]=vertex[Triangles[i].vertex[1]].y;
++			vArray[j+17]=vertex[Triangles[i].vertex[1]].z;
+ 
+-			vArray[j+16]=Triangles[i].gx[2];
+-			vArray[j+17]=Triangles[i].gy[2];
+-			vArray[j+18]=normals[Triangles[i].vertex[2]].x;
+-			vArray[j+19]=normals[Triangles[i].vertex[2]].y;
+-			vArray[j+20]=normals[Triangles[i].vertex[2]].z;
+-			vArray[j+21]=vertex[Triangles[i].vertex[2]].x;
+-			vArray[j+22]=vertex[Triangles[i].vertex[2]].y;
+-			vArray[j+23]=vertex[Triangles[i].vertex[2]].z;
++			vArray[j+18]=Triangles[i].gx[2];
++			vArray[j+19]=Triangles[i].gy[2];
++			vArray[j+20]=normals[Triangles[i].vertex[2]].x;
++			vArray[j+21]=normals[Triangles[i].vertex[2]].y;
++			vArray[j+22]=normals[Triangles[i].vertex[2]].z;
++			vArray[j+23]=1.0f;
++			vArray[j+24]=vertex[Triangles[i].vertex[2]].x;
++			vArray[j+25]=vertex[Triangles[i].vertex[2]].y;
++			vArray[j+26]=vertex[Triangles[i].vertex[2]].z;
+ 		}
+ 		if(flat)
+ 			for(i=0;i<TriangleNum;i++){
+-				j=i*24;
++				j=i*MAX_ARRAY_STRIDE;
+ 				vArray[j+0]=Triangles[i].gx[0];
+ 				vArray[j+1]=Triangles[i].gy[0];
+ 				vArray[j+2]=facenormals[i].x*-1;
+ 				vArray[j+3]=facenormals[i].y*-1;
+ 				vArray[j+4]=facenormals[i].z*-1;
+-				vArray[j+5]=vertex[Triangles[i].vertex[0]].x;
+-				vArray[j+6]=vertex[Triangles[i].vertex[0]].y;
+-				vArray[j+7]=vertex[Triangles[i].vertex[0]].z;
++				vArray[j+5]=1.0f;
++				vArray[j+6]=vertex[Triangles[i].vertex[0]].x;
++				vArray[j+7]=vertex[Triangles[i].vertex[0]].y;
++				vArray[j+8]=vertex[Triangles[i].vertex[0]].z;
+ 
+-				vArray[j+8]=Triangles[i].gx[1];
+-				vArray[j+9]=Triangles[i].gy[1];
+-				vArray[j+10]=facenormals[i].x*-1;
+-				vArray[j+11]=facenormals[i].y*-1;
+-				vArray[j+12]=facenormals[i].z*-1;
+-				vArray[j+13]=vertex[Triangles[i].vertex[1]].x;
+-				vArray[j+14]=vertex[Triangles[i].vertex[1]].y;
+-				vArray[j+15]=vertex[Triangles[i].vertex[1]].z;
++				vArray[j+9]=Triangles[i].gx[1];
++				vArray[j+10]=Triangles[i].gy[1];
++				vArray[j+11]=facenormals[i].x*-1;
++				vArray[j+12]=facenormals[i].y*-1;
++				vArray[j+13]=facenormals[i].z*-1;
++				vArray[j+14]=1.0f;
++				vArray[j+15]=vertex[Triangles[i].vertex[1]].x;
++				vArray[j+16]=vertex[Triangles[i].vertex[1]].y;
++				vArray[j+17]=vertex[Triangles[i].vertex[1]].z;
+ 
+-				vArray[j+16]=Triangles[i].gx[2];
+-				vArray[j+17]=Triangles[i].gy[2];
+-				vArray[j+18]=facenormals[i].x*-1;
+-				vArray[j+19]=facenormals[i].y*-1;
+-				vArray[j+20]=facenormals[i].z*-1;
+-				vArray[j+21]=vertex[Triangles[i].vertex[2]].x;
+-				vArray[j+22]=vertex[Triangles[i].vertex[2]].y;
+-				vArray[j+23]=vertex[Triangles[i].vertex[2]].z;
+-
++				vArray[j+18]=Triangles[i].gx[2];
++				vArray[j+19]=Triangles[i].gy[2];
++				vArray[j+20]=facenormals[i].x*-1;
++				vArray[j+21]=facenormals[i].y*-1;
++				vArray[j+22]=facenormals[i].z*-1;
++				vArray[j+23]=1.0f;
++				vArray[j+24]=vertex[Triangles[i].vertex[2]].x;
++				vArray[j+25]=vertex[Triangles[i].vertex[2]].y;
++				vArray[j+26]=vertex[Triangles[i].vertex[2]].z;
+ 			}
+ }
+ 
+@@ -356,51 +361,57 @@
+ 	static int j;
+ 	if(!flat)
+ 		for(i=0;i<TriangleNum;i++){
+-			j=i*24;
++			j=i*MAX_ARRAY_STRIDE;
+ 			vArray[j+2]=normals[Triangles[i].vertex[0]].x;
+ 			vArray[j+3]=normals[Triangles[i].vertex[0]].y;
+ 			vArray[j+4]=normals[Triangles[i].vertex[0]].z;
+-			vArray[j+5]=vertex[Triangles[i].vertex[0]].x;
+-			vArray[j+6]=vertex[Triangles[i].vertex[0]].y;
+-			vArray[j+7]=vertex[Triangles[i].vertex[0]].z;
++			vArray[j+5]=1.0f;
++			vArray[j+6]=vertex[Triangles[i].vertex[0]].x;
++			vArray[j+7]=vertex[Triangles[i].vertex[0]].y;
++			vArray[j+8]=vertex[Triangles[i].vertex[0]].z;
+ 
+-			vArray[j+10]=normals[Triangles[i].vertex[1]].x;
+-			vArray[j+11]=normals[Triangles[i].vertex[1]].y;
+-			vArray[j+12]=normals[Triangles[i].vertex[1]].z;
+-			vArray[j+13]=vertex[Triangles[i].vertex[1]].x;
+-			vArray[j+14]=vertex[Triangles[i].vertex[1]].y;
+-			vArray[j+15]=vertex[Triangles[i].vertex[1]].z;
++			vArray[j+11]=normals[Triangles[i].vertex[1]].x;
++			vArray[j+12]=normals[Triangles[i].vertex[1]].y;
++			vArray[j+13]=normals[Triangles[i].vertex[1]].z;
++			vArray[j+14]=1.0f;
++			vArray[j+15]=vertex[Triangles[i].vertex[1]].x;
++			vArray[j+16]=vertex[Triangles[i].vertex[1]].y;
++			vArray[j+17]=vertex[Triangles[i].vertex[1]].z;
+ 
+-			vArray[j+18]=normals[Triangles[i].vertex[2]].x;
+-			vArray[j+19]=normals[Triangles[i].vertex[2]].y;
+-			vArray[j+20]=normals[Triangles[i].vertex[2]].z;
+-			vArray[j+21]=vertex[Triangles[i].vertex[2]].x;
+-			vArray[j+22]=vertex[Triangles[i].vertex[2]].y;
+-			vArray[j+23]=vertex[Triangles[i].vertex[2]].z;
++			vArray[j+20]=normals[Triangles[i].vertex[2]].x;
++			vArray[j+21]=normals[Triangles[i].vertex[2]].y;
++			vArray[j+22]=normals[Triangles[i].vertex[2]].z;
++			vArray[j+23]=1.0f;
++			vArray[j+24]=vertex[Triangles[i].vertex[2]].x;
++			vArray[j+25]=vertex[Triangles[i].vertex[2]].y;
++			vArray[j+26]=vertex[Triangles[i].vertex[2]].z;
+ 		}
+ 		if(flat)
+ 			for(i=0;i<TriangleNum;i++){
+-				j=i*24;
++				j=i*MAX_ARRAY_STRIDE;
+ 				vArray[j+2]=facenormals[i].x*-1;
+ 				vArray[j+3]=facenormals[i].y*-1;
+ 				vArray[j+4]=facenormals[i].z*-1;
+-				vArray[j+5]=vertex[Triangles[i].vertex[0]].x;
+-				vArray[j+6]=vertex[Triangles[i].vertex[0]].y;
+-				vArray[j+7]=vertex[Triangles[i].vertex[0]].z;
++                vArray[j+5]=1.0f;
++				vArray[j+6]=vertex[Triangles[i].vertex[0]].x;
++				vArray[j+7]=vertex[Triangles[i].vertex[0]].y;
++				vArray[j+8]=vertex[Triangles[i].vertex[0]].z;
+ 
+-				vArray[j+10]=facenormals[i].x*-1;
+-				vArray[j+11]=facenormals[i].y*-1;
+-				vArray[j+12]=facenormals[i].z*-1;
+-				vArray[j+13]=vertex[Triangles[i].vertex[1]].x;
+-				vArray[j+14]=vertex[Triangles[i].vertex[1]].y;
+-				vArray[j+15]=vertex[Triangles[i].vertex[1]].z;
++				vArray[j+11]=facenormals[i].x*-1;
++				vArray[j+12]=facenormals[i].y*-1;
++				vArray[j+13]=facenormals[i].z*-1;
++				vArray[j+14]=1.0f;
++				vArray[j+15]=vertex[Triangles[i].vertex[1]].x;
++				vArray[j+16]=vertex[Triangles[i].vertex[1]].y;
++				vArray[j+17]=vertex[Triangles[i].vertex[1]].z;
+ 
+-				vArray[j+18]=facenormals[i].x*-1;
+-				vArray[j+19]=facenormals[i].y*-1;
+-				vArray[j+20]=facenormals[i].z*-1;
+-				vArray[j+21]=vertex[Triangles[i].vertex[2]].x;
+-				vArray[j+22]=vertex[Triangles[i].vertex[2]].y;
+-				vArray[j+23]=vertex[Triangles[i].vertex[2]].z;
++				vArray[j+20]=facenormals[i].x*-1;
++				vArray[j+21]=facenormals[i].y*-1;
++				vArray[j+22]=facenormals[i].z*-1;
++				vArray[j+23]=1.0f;
++				vArray[j+24]=vertex[Triangles[i].vertex[2]].x;
++				vArray[j+25]=vertex[Triangles[i].vertex[2]].y;
++				vArray[j+26]=vertex[Triangles[i].vertex[2]].z;
+ 			}
+ }
+ 
+@@ -409,18 +420,18 @@
+ 	static int i;
+ 	static int j;
+ 	for(i=0;i<TriangleNum;i++){
+-		j=i*24;
+-		vArray[j+5]=vertex[Triangles[i].vertex[0]].x;
+-		vArray[j+6]=vertex[Triangles[i].vertex[0]].y;
+-		vArray[j+7]=vertex[Triangles[i].vertex[0]].z;
++		j=i*MAX_ARRAY_STRIDE;
++		vArray[j+6]=vertex[Triangles[i].vertex[0]].x;
++		vArray[j+7]=vertex[Triangles[i].vertex[0]].y;
++		vArray[j+8]=vertex[Triangles[i].vertex[0]].z;
+ 
+-		vArray[j+13]=vertex[Triangles[i].vertex[1]].x;
+-		vArray[j+14]=vertex[Triangles[i].vertex[1]].y;
+-		vArray[j+15]=vertex[Triangles[i].vertex[1]].z;
++		vArray[j+15]=vertex[Triangles[i].vertex[1]].x;
++		vArray[j+16]=vertex[Triangles[i].vertex[1]].y;
++		vArray[j+17]=vertex[Triangles[i].vertex[1]].z;
+ 
+-		vArray[j+21]=vertex[Triangles[i].vertex[2]].x;
+-		vArray[j+22]=vertex[Triangles[i].vertex[2]].y;
+-		vArray[j+23]=vertex[Triangles[i].vertex[2]].z;
++		vArray[j+24]=vertex[Triangles[i].vertex[2]].x;
++		vArray[j+25]=vertex[Triangles[i].vertex[2]].y;
++		vArray[j+26]=vertex[Triangles[i].vertex[2]].z;
+ 	}
+ }
+ 
+@@ -458,7 +469,7 @@
+ 	possible = (int*)malloc(sizeof(int)*TriangleNum);
+ 	vertex = (XYZ*)malloc(sizeof(XYZ)*vertexNum);
+ 	Triangles = (TexturedTriangle*)malloc(sizeof(TexturedTriangle)*TriangleNum);
+-	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*24);
++	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*MAX_ARRAY_STRIDE);
+ 
+ 	for(i=0;i<vertexNum;i++){
+ 		funpackf(tfile, "Bf Bf Bf", &vertex[i].x,&vertex[i].y,&vertex[i].z);
+@@ -545,7 +556,7 @@
+ 	normals = (XYZ*)malloc(sizeof(XYZ)*vertexNum);
+ 	facenormals = (XYZ*)malloc(sizeof(XYZ)*TriangleNum);
+ 	Triangles = (TexturedTriangle*)malloc(sizeof(TexturedTriangle)*TriangleNum);
+-	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*24);
++	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*MAX_ARRAY_STRIDE);
+ 
+ 	for(i=0;i<vertexNum;i++){
+ 		funpackf(tfile, "Bf Bf Bf", &vertex[i].x,&vertex[i].y,&vertex[i].z);
+@@ -633,8 +644,7 @@
+ 	normals = (XYZ*)malloc(sizeof(XYZ)*vertexNum);
+ 	facenormals = (XYZ*)malloc(sizeof(XYZ)*TriangleNum);
+ 	Triangles = (TexturedTriangle*)malloc(sizeof(TexturedTriangle)*TriangleNum);
+-	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*24);
+-
++	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*MAX_ARRAY_STRIDE);
+ 
+ 	for(i=0;i<vertexNum;i++){
+ 		funpackf(tfile, "Bf Bf Bf", &vertex[i].x,&vertex[i].y,&vertex[i].z);
+@@ -737,8 +747,7 @@
+ 	possible = (int*)malloc(sizeof(int)*TriangleNum);
+ 	vertex = (XYZ*)malloc(sizeof(XYZ)*vertexNum);
+ 	Triangles = (TexturedTriangle*)malloc(sizeof(TexturedTriangle)*TriangleNum);
+-	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*24);
+-
++	vArray = (GLfloat*)malloc(sizeof(GLfloat)*TriangleNum*MAX_ARRAY_STRIDE);
+ 
+ 	for(i=0;i<vertexNum;i++){
+ 		funpackf(tfile, "Bf Bf Bf", &vertex[i].x,&vertex[i].y,&vertex[i].z);
+@@ -933,13 +942,350 @@
+ void Model::drawimmediate()
+ {
+ 	glBindTexture(GL_TEXTURE_2D,(unsigned long)textureptr);
++#if defined(USE_GLES)
++    GLfloat vtx[TriangleNum*9];
++    GLfloat tex[TriangleNum*6];
++    GLfloat nrm[TriangleNum*9];
++    GLfloat clr[TriangleNum*12];
++
++	glEnableClientState(GL_VERTEX_ARRAY);
++	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++	if(color) {
++        glEnableClientState(GL_COLOR_ARRAY);
++	} else {
++        glEnableClientState(GL_NORMAL_ARRAY);
++	}
++#else
+ 	glBegin(GL_TRIANGLES);
++#endif
+ 	for(int i=0;i<TriangleNum;i++){
+ 		/*if(Triangles[i].vertex[0]<vertexNum&&Triangles[i].vertex[1]<vertexNum&&Triangles[i].vertex[2]<vertexNum&&Triangles[i].vertex[0]>=0&&Triangles[i].vertex[1]>=0&&Triangles[i].vertex[2]>=0){
+ 		if(isnormal(vertex[Triangles[i].vertex[0]].x)&&isnormal(vertex[Triangles[i].vertex[0]].y)&&isnormal(vertex[Triangles[i].vertex[0]].z)
+ 		&&isnormal(vertex[Triangles[i].vertex[1]].x)&&isnormal(vertex[Triangles[i].vertex[1]].y)&&isnormal(vertex[Triangles[i].vertex[1]].z)
+ 		&&isnormal(vertex[Triangles[i].vertex[2]].x)&&isnormal(vertex[Triangles[i].vertex[2]].y)&&isnormal(vertex[Triangles[i].vertex[2]].z)){
+ 		*/
++#if defined(USE_GLES)
++    // Point 1
++        tex[(i*6)+0]=Triangles[i].gx[0];
++        tex[(i*6)+1]=Triangles[i].gy[0];
++        if(color) {
++            clr[(i*12)+0]=normals[Triangles[i].vertex[0]].x;
++            clr[(i*12)+1]=normals[Triangles[i].vertex[0]].y;
++            clr[(i*12)+2]=normals[Triangles[i].vertex[0]].z;
++            clr[(i*12)+3]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+0]=normals[Triangles[i].vertex[0]].x;
++            nrm[(i*9)+1]=normals[Triangles[i].vertex[0]].y;
++            nrm[(i*9)+2]=normals[Triangles[i].vertex[0]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+0]=facenormals[i].x;
++            nrm[(i*9)+1]=facenormals[i].y;
++            nrm[(i*9)+2]=facenormals[i].z;
++        }
++        vtx[(i*9)+0]=vertex[Triangles[i].vertex[0]].x;
++        vtx[(i*9)+1]=vertex[Triangles[i].vertex[0]].y;
++        vtx[(i*9)+2]=vertex[Triangles[i].vertex[0]].z;
++    // Point 2
++        tex[(i*6)+2]=Triangles[i].gx[1];
++        tex[(i*6)+3]=Triangles[i].gy[1];
++        if(color) {
++            clr[(i*12)+4]=normals[Triangles[i].vertex[1]].x;
++            clr[(i*12)+5]=normals[Triangles[i].vertex[1]].y;
++            clr[(i*12)+6]=normals[Triangles[i].vertex[1]].z;
++            clr[(i*12)+7]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+3]=normals[Triangles[i].vertex[1]].x;
++            nrm[(i*9)+4]=normals[Triangles[i].vertex[1]].y;
++            nrm[(i*9)+5]=normals[Triangles[i].vertex[1]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+3]=facenormals[i].x;
++            nrm[(i*9)+4]=facenormals[i].y;
++            nrm[(i*9)+5]=facenormals[i].z;
++        }
++        vtx[(i*9)+3]=vertex[Triangles[i].vertex[1]].x;
++        vtx[(i*9)+4]=vertex[Triangles[i].vertex[1]].y;
++        vtx[(i*9)+5]=vertex[Triangles[i].vertex[1]].z;
++    // Point 3
++        tex[(i*6)+4]=Triangles[i].gx[2];
++        tex[(i*6)+5]=Triangles[i].gy[2];
++        if(color) {
++            clr[(i*12)+8]=normals[Triangles[i].vertex[2]].x;
++            clr[(i*12)+9]=normals[Triangles[i].vertex[2]].y;
++            clr[(i*12)+10]=normals[Triangles[i].vertex[2]].z;
++            clr[(i*12)+11]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+6]=normals[Triangles[i].vertex[2]].x;
++            nrm[(i*9)+7]=normals[Triangles[i].vertex[2]].y;
++            nrm[(i*9)+8]=normals[Triangles[i].vertex[2]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+6]=facenormals[i].x;
++            nrm[(i*9)+7]=facenormals[i].y;
++            nrm[(i*9)+8]=facenormals[i].z;
++        }
++        vtx[(i*9)+6]=vertex[Triangles[i].vertex[2]].x;
++        vtx[(i*9)+7]=vertex[Triangles[i].vertex[2]].y;
++        vtx[(i*9)+8]=vertex[Triangles[i].vertex[2]].z;
++#else
++		glTexCoord2f(Triangles[i].gx[0],Triangles[i].gy[0]);
++		if(color)glColor3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
++		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
++		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
++		glVertex3f(vertex[Triangles[i].vertex[0]].x,vertex[Triangles[i].vertex[0]].y,vertex[Triangles[i].vertex[0]].z);
++
++		glTexCoord2f(Triangles[i].gx[1],Triangles[i].gy[1]);
++		if(color)glColor3f(normals[Triangles[i].vertex[1]].x,normals[Triangles[i].vertex[1]].y,normals[Triangles[i].vertex[1]].z);
++		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[1]].x,normals[Triangles[i].vertex[1]].y,normals[Triangles[i].vertex[1]].z);
++		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
++		glVertex3f(vertex[Triangles[i].vertex[1]].x,vertex[Triangles[i].vertex[1]].y,vertex[Triangles[i].vertex[1]].z);
++
++		glTexCoord2f(Triangles[i].gx[2],Triangles[i].gy[2]);
++		if(color)glColor3f(normals[Triangles[i].vertex[2]].x,normals[Triangles[i].vertex[2]].y,normals[Triangles[i].vertex[2]].z);
++		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[2]].x,normals[Triangles[i].vertex[2]].y,normals[Triangles[i].vertex[2]].z);
++		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
++		glVertex3f(vertex[Triangles[i].vertex[2]].x,vertex[Triangles[i].vertex[2]].y,vertex[Triangles[i].vertex[2]].z);
++#endif
++		//}
++		//}
++	}
++#if defined(USE_GLES)
++    glVertexPointer(3, GL_FLOAT, 0, vtx);
++    glTexCoordPointer(2, GL_FLOAT, 0, tex);
++    if(color) {
++        glColorPointer(4, GL_FLOAT, 0, clr);
++    } else {
++        glNormalPointer(GL_FLOAT, 0, nrm);
++    }
++    glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
++
++	if(color) {
++        glDisableClientState(GL_COLOR_ARRAY);
++	} else {
++        glDisableClientState(GL_NORMAL_ARRAY);
++	}
++	glDisableClientState(GL_VERTEX_ARRAY);
++	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
++	glEnd();
++#endif
++}
++
++void Model::draw()
++{
++	if(type!=normaltype&&type!=decalstype)return;
++
++#if defined(USE_GLES)
++    if(!BufferName) {
++        glGenBuffers(1, &BufferName);
++    }
++    glBindBuffer(GL_ARRAY_BUFFER, BufferName);
++    glBufferData(GL_ARRAY_BUFFER, VARRAY_SIZE, vArray, GL_DYNAMIC_DRAW);
++
++    glVertexPointer(3, GL_FLOAT, STRIDE_SIZE, VTX_OFFSET);
++    glTexCoordPointer(2, GL_FLOAT, STRIDE_SIZE, TEX_OFFSET);
++    if(color) {
++        glColorPointer(4, GL_FLOAT, STRIDE_SIZE, CLR_OFFSET);
++    } else {
++        glNormalPointer(GL_FLOAT, STRIDE_SIZE, NRM_OFFSET);
++    }
++#else
++	if(!color)glInterleavedArrays( GL_T2F_N3F_V3F,8*sizeof(GLfloat),&vArray[0]);
++	if(color)glInterleavedArrays( GL_T2F_C3F_V3F,8*sizeof(GLfloat),&vArray[0]);
++#endif
++	glBindTexture(GL_TEXTURE_2D,(unsigned long)textureptr);
++
++	glEnableClientState(GL_VERTEX_ARRAY);
++	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++	if(color) {
++        glEnableClientState(GL_COLOR_ARRAY);
++	} else {
++        glEnableClientState(GL_NORMAL_ARRAY);
++	}
++
++#if !defined(USE_GLES)
++#if PLATFORM_MACOSX
++	glLockArraysEXT( 0, TriangleNum*3);
++#endif
++#endif
++	glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
++#if !defined(USE_GLES)
++#if PLATFORM_MACOSX
++	glUnlockArraysEXT();
++#endif
++#endif
++
++	if(color) {
++        glDisableClientState(GL_COLOR_ARRAY);
++	} else {
++        glDisableClientState(GL_NORMAL_ARRAY);
++	}
++	glDisableClientState(GL_VERTEX_ARRAY);
++	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++	//drawimmediate();
++
++#if defined(USE_GLES)
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++#endif
++}
++
++void Model::drawdifftex(GLuint texture)
++{
++#if defined(USE_GLES)
++    if(!BufferName) {
++        glGenBuffers(1, &BufferName);
++    }
++    glBindBuffer(GL_ARRAY_BUFFER, BufferName);
++    glBufferData(GL_ARRAY_BUFFER, VARRAY_SIZE, vArray, GL_DYNAMIC_DRAW);
++
++    glVertexPointer(3, GL_FLOAT, STRIDE_SIZE, VTX_OFFSET);
++    glTexCoordPointer(2, GL_FLOAT, STRIDE_SIZE, TEX_OFFSET);
++    if(color) {
++        glColorPointer(4, GL_FLOAT, STRIDE_SIZE, CLR_OFFSET);
++    } else {
++        glNormalPointer(GL_FLOAT, STRIDE_SIZE, NRM_OFFSET);
++    }
++#else
++	if(!color)glInterleavedArrays( GL_T2F_N3F_V3F,8*sizeof(GLfloat),&vArray[0]);
++	if(color)glInterleavedArrays( GL_T2F_C3F_V3F,8*sizeof(GLfloat),&vArray[0]);
++#endif
++
++	glBindTexture(GL_TEXTURE_2D,(unsigned long)texture);
++	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
++	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
++
++	glEnableClientState(GL_VERTEX_ARRAY);
++	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++	if(color) {
++        glEnableClientState(GL_COLOR_ARRAY);
++	} else {
++        glEnableClientState(GL_NORMAL_ARRAY);
++	}
++
++#if !defined(USE_GLES)
++#ifndef WIN32
++	glLockArraysEXT( 0, TriangleNum*3);
++#endif
++#endif
++	glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
++#if !defined(USE_GLES)
++#ifndef WIN32
++	glUnlockArraysEXT();
++#endif
++#endif
++
++	if(color) {
++        glDisableClientState(GL_COLOR_ARRAY);
++	} else {
++        glDisableClientState(GL_NORMAL_ARRAY);
++	}
++	glDisableClientState(GL_VERTEX_ARRAY);
++	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++	//drawdiffteximmediate(texture);
++
++#if defined(USE_GLES)
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++#endif
++}
++
++void Model::drawdiffteximmediate(GLuint texture)
++{
++	glBindTexture(GL_TEXTURE_2D,(unsigned long)texture);
++
++#if defined(USE_GLES)
++    GLfloat vtx[TriangleNum*9];
++    GLfloat tex[TriangleNum*6];
++    GLfloat nrm[TriangleNum*9];
++    GLfloat clr[TriangleNum*12];
++
++	glEnableClientState(GL_VERTEX_ARRAY);
++	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++	if(color) {
++        glEnableClientState(GL_COLOR_ARRAY);
++	} else {
++        glEnableClientState(GL_NORMAL_ARRAY);
++	}
++#else
++	glBegin(GL_TRIANGLES);
++#endif
++	for(int i=0;i<TriangleNum;i++){
++#if defined(USE_GLES)
++    // Point 1
++        tex[(i*6)+0]=Triangles[i].gx[0];
++        tex[(i*6)+1]=Triangles[i].gy[0];
++        if(color) {
++            clr[(i*12)+0]=normals[Triangles[i].vertex[0]].x;
++            clr[(i*12)+1]=normals[Triangles[i].vertex[0]].y;
++            clr[(i*12)+2]=normals[Triangles[i].vertex[0]].z;
++            clr[(i*12)+3]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+0]=normals[Triangles[i].vertex[0]].x;
++            nrm[(i*9)+1]=normals[Triangles[i].vertex[0]].y;
++            nrm[(i*9)+2]=normals[Triangles[i].vertex[0]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+0]=facenormals[i].x;
++            nrm[(i*9)+1]=facenormals[i].y;
++            nrm[(i*9)+2]=facenormals[i].z;
++        }
++        vtx[(i*9)+0]=vertex[Triangles[i].vertex[0]].x;
++        vtx[(i*9)+1]=vertex[Triangles[i].vertex[0]].y;
++        vtx[(i*9)+2]=vertex[Triangles[i].vertex[0]].z;
++    // Point 2
++        tex[(i*6)+2]=Triangles[i].gx[1];
++        tex[(i*6)+3]=Triangles[i].gy[1];
++        if(color) {
++            clr[(i*12)+4]=normals[Triangles[i].vertex[1]].x;
++            clr[(i*12)+5]=normals[Triangles[i].vertex[1]].y;
++            clr[(i*12)+6]=normals[Triangles[i].vertex[1]].z;
++            clr[(i*12)+7]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+3]=normals[Triangles[i].vertex[1]].x;
++            nrm[(i*9)+4]=normals[Triangles[i].vertex[1]].y;
++            nrm[(i*9)+5]=normals[Triangles[i].vertex[1]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+3]=facenormals[i].x;
++            nrm[(i*9)+4]=facenormals[i].y;
++            nrm[(i*9)+5]=facenormals[i].z;
++        }
++        vtx[(i*9)+3]=vertex[Triangles[i].vertex[1]].x;
++        vtx[(i*9)+4]=vertex[Triangles[i].vertex[1]].y;
++        vtx[(i*9)+5]=vertex[Triangles[i].vertex[1]].z;
++    // Point 3
++        tex[(i*6)+4]=Triangles[i].gx[2];
++        tex[(i*6)+5]=Triangles[i].gy[2];
++        if(color) {
++            clr[(i*12)+8]=normals[Triangles[i].vertex[2]].x;
++            clr[(i*12)+9]=normals[Triangles[i].vertex[2]].y;
++            clr[(i*12)+10]=normals[Triangles[i].vertex[2]].z;
++            clr[(i*12)+11]=1.0f;
++        }
++        if(!color&&!flat) {
++            nrm[(i*9)+6]=normals[Triangles[i].vertex[2]].x;
++            nrm[(i*9)+7]=normals[Triangles[i].vertex[2]].y;
++            nrm[(i*9)+8]=normals[Triangles[i].vertex[2]].z;
++        }
++        if(!color&&flat) {
++            nrm[(i*9)+6]=facenormals[i].x;
++            nrm[(i*9)+7]=facenormals[i].y;
++            nrm[(i*9)+8]=facenormals[i].z;
++        }
++        vtx[(i*9)+6]=vertex[Triangles[i].vertex[2]].x;
++        vtx[(i*9)+7]=vertex[Triangles[i].vertex[2]].y;
++        vtx[(i*9)+8]=vertex[Triangles[i].vertex[2]].z;
++#else
++		/*if(Triangles[i].vertex[0]<vertexNum&&Triangles[i].vertex[1]<vertexNum&&Triangles[i].vertex[2]<vertexNum&&Triangles[i].vertex[0]>=0&&Triangles[i].vertex[1]>=0&&Triangles[i].vertex[2]>=0){
++		if(isnormal(vertex[Triangles[i].vertex[0]].x)&&isnormal(vertex[Triangles[i].vertex[0]].y)&&isnormal(vertex[Triangles[i].vertex[0]].z)
++		&&isnormal(vertex[Triangles[i].vertex[1]].x)&&isnormal(vertex[Triangles[i].vertex[1]].y)&&isnormal(vertex[Triangles[i].vertex[1]].z)
++		&&isnormal(vertex[Triangles[i].vertex[2]].x)&&isnormal(vertex[Triangles[i].vertex[2]].y)&&isnormal(vertex[Triangles[i].vertex[2]].z)){
++		*/
+ 		glTexCoord2f(Triangles[i].gx[0],Triangles[i].gy[0]);
+ 		if(color)glColor3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
+ 		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
+@@ -957,100 +1303,31 @@
+ 		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[2]].x,normals[Triangles[i].vertex[2]].y,normals[Triangles[i].vertex[2]].z);
+ 		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
+ 		glVertex3f(vertex[Triangles[i].vertex[2]].x,vertex[Triangles[i].vertex[2]].y,vertex[Triangles[i].vertex[2]].z);
++#endif
+ 		//}
+ 		//}
+ 	}
+-	glEnd();
++#if defined(USE_GLES)
++    glVertexPointer(3, GL_FLOAT, 0, vtx);
++    glTexCoordPointer(2, GL_FLOAT, 0, tex);
++    if(color) {
++        glColorPointer(4, GL_FLOAT, 0, clr);
++    } else {
++        glNormalPointer(GL_FLOAT, 0, nrm);
+ }
+ 
+-void Model::draw()
+-{
+-	if(type!=normaltype&&type!=decalstype)return;
++    glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
+ 
+-	glEnableClientState(GL_NORMAL_ARRAY);
+-	glEnableClientState(GL_VERTEX_ARRAY);
+-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+-
+-	if(!color)glInterleavedArrays( GL_T2F_N3F_V3F,8*sizeof(GLfloat),&vArray[0]);
+-	if(color)glInterleavedArrays( GL_T2F_C3F_V3F,8*sizeof(GLfloat),&vArray[0]);
+-	glBindTexture(GL_TEXTURE_2D,(unsigned long)textureptr);
+-
+-#if PLATFORM_MACOSX
+-	glLockArraysEXT( 0, TriangleNum*3);
+-#endif
+-	glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
+-#if PLATFORM_MACOSX
+-	glUnlockArraysEXT();
+-#endif
+-
+-
+-	if(!color)glDisableClientState(GL_NORMAL_ARRAY);
+-	if(color)glDisableClientState(GL_COLOR_ARRAY);
++	if(color) {
++        glDisableClientState(GL_COLOR_ARRAY);
++	} else {
++        glDisableClientState(GL_NORMAL_ARRAY);
++	}
+ 	glDisableClientState(GL_VERTEX_ARRAY);
+ 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+-	//drawimmediate();
+-}
+-
+-void Model::drawdifftex(GLuint texture)
+-{
+-	glEnableClientState(GL_NORMAL_ARRAY);
+-	glEnableClientState(GL_VERTEX_ARRAY);
+-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+-	if(!color)glInterleavedArrays( GL_T2F_N3F_V3F,8*sizeof(GLfloat),&vArray[0]);
+-	if(color)glInterleavedArrays( GL_T2F_C3F_V3F,8*sizeof(GLfloat),&vArray[0]);
+-
+-	glBindTexture(GL_TEXTURE_2D,(unsigned long)texture);
+-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+-	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+-
+-
+-#ifndef WIN32
+-	glLockArraysEXT( 0, TriangleNum*3);
++#else
++	glEnd();
+ #endif
+-	glDrawArrays(GL_TRIANGLES, 0, TriangleNum*3);
+-#ifndef WIN32
+-	glUnlockArraysEXT();
+-#endif
+-
+-
+-	if(!color)glDisableClientState(GL_NORMAL_ARRAY);
+-	if(color)glDisableClientState(GL_COLOR_ARRAY);
+-	glDisableClientState(GL_VERTEX_ARRAY);
+-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+-	//drawdiffteximmediate(texture);
+-}
+-
+-void Model::drawdiffteximmediate(GLuint texture)
+-{
+-	glBindTexture(GL_TEXTURE_2D,(unsigned long)texture);
+-
+-	glBegin(GL_TRIANGLES);
+-	for(int i=0;i<TriangleNum;i++){
+-		/*if(Triangles[i].vertex[0]<vertexNum&&Triangles[i].vertex[1]<vertexNum&&Triangles[i].vertex[2]<vertexNum&&Triangles[i].vertex[0]>=0&&Triangles[i].vertex[1]>=0&&Triangles[i].vertex[2]>=0){
+-		if(isnormal(vertex[Triangles[i].vertex[0]].x)&&isnormal(vertex[Triangles[i].vertex[0]].y)&&isnormal(vertex[Triangles[i].vertex[0]].z)
+-		&&isnormal(vertex[Triangles[i].vertex[1]].x)&&isnormal(vertex[Triangles[i].vertex[1]].y)&&isnormal(vertex[Triangles[i].vertex[1]].z)
+-		&&isnormal(vertex[Triangles[i].vertex[2]].x)&&isnormal(vertex[Triangles[i].vertex[2]].y)&&isnormal(vertex[Triangles[i].vertex[2]].z)){
+-		*/glTexCoord2f(Triangles[i].gx[0],Triangles[i].gy[0]);
+-		if(color)glColor3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
+-		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[0]].x,normals[Triangles[i].vertex[0]].y,normals[Triangles[i].vertex[0]].z);
+-		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
+-		glVertex3f(vertex[Triangles[i].vertex[0]].x,vertex[Triangles[i].vertex[0]].y,vertex[Triangles[i].vertex[0]].z);
+-
+-		glTexCoord2f(Triangles[i].gx[1],Triangles[i].gy[1]);
+-		if(color)glColor3f(normals[Triangles[i].vertex[1]].x,normals[Triangles[i].vertex[1]].y,normals[Triangles[i].vertex[1]].z);
+-		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[1]].x,normals[Triangles[i].vertex[1]].y,normals[Triangles[i].vertex[1]].z);
+-		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
+-		glVertex3f(vertex[Triangles[i].vertex[1]].x,vertex[Triangles[i].vertex[1]].y,vertex[Triangles[i].vertex[1]].z);
+-
+-		glTexCoord2f(Triangles[i].gx[2],Triangles[i].gy[2]);
+-		if(color)glColor3f(normals[Triangles[i].vertex[2]].x,normals[Triangles[i].vertex[2]].y,normals[Triangles[i].vertex[2]].z);
+-		if(!color&&!flat)glNormal3f(normals[Triangles[i].vertex[2]].x,normals[Triangles[i].vertex[2]].y,normals[Triangles[i].vertex[2]].z);
+-		if(!color&&flat)glNormal3f(facenormals[i].x,facenormals[i].y,facenormals[i].y);
+-		glVertex3f(vertex[Triangles[i].vertex[2]].x,vertex[Triangles[i].vertex[2]].y,vertex[Triangles[i].vertex[2]].z);
+-		//}
+-		//}
+-	}
+-	glEnd();
+ }
+ 
+ void Model::drawdecals(GLuint shadowtexture,GLuint bloodtexture,GLuint bloodtexture2,GLuint breaktexture)
+@@ -1126,12 +1403,36 @@
+ 
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 			glPushMatrix();
++#if defined(USE_GLES)
++                GLfloat tex[6];
++                GLfloat vtx[9];
++
++				for(int j=0;j<3;j++)
++				{
++                    tex[(j*2)+0] = decaltexcoords[i][j][0];
++                    tex[(j*2)+1] = decaltexcoords[i][j][1];
++                    vtx[(j*3)+0] = decalvertex[i][j].x;
++                    vtx[(j*3)+1] = decalvertex[i][j].y;
++                    vtx[(j*3)+2] = decalvertex[i][j].z;
++				}
++
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtx);
++                glTexCoordPointer(2, GL_FLOAT, 0, tex);
++                glDrawArrays(GL_TRIANGLES, 0, 3);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_TRIANGLES);
+ 				for(int j=0;j<3;j++)
+ 				{
+ 					glTexCoord2f(decaltexcoords[i][j][0], decaltexcoords[i][j][1]); glVertex3f(decalvertex[i][j].x,decalvertex[i][j].y,decalvertex[i][j].z);
+ 				}
+ 			glEnd();
++#endif
+ 			glPopMatrix();
+ 		}
+ 		for(i=numdecals-1;i>=0;i--){
+@@ -1511,6 +1812,9 @@
+ 	dealloc(decalposition);
+ 	decalposition = 0;
+ 
++#if defined(USE_GLES)
++    glDeleteBuffers(1, &BufferName);
++#endif
+ };
+ 
+ Model::Model()
+@@ -1549,5 +1853,9 @@
+ 	flat = 0;
+ 
+ 	type=nothing;
++
++#if defined(USE_GLES)
++	BufferName = 0;
++#endif
+ }
+ 
+diff -r 97b303e79826 Source/Models.h
+--- a/Source/Models.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Models.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -37,6 +37,16 @@
+ #include "binio.h"
+ #include "Quaternions.h"
+ 
++#define MAX_ARRAY_STRIDE 27
++#if defined(USE_GLES)
++#define VARRAY_SIZE     sizeof(GLfloat)*TriangleNum*MAX_ARRAY_STRIDE
++#define STRIDE_SIZE     sizeof(GLfloat)*9
++#define TEX_OFFSET      0
++#define NRM_OFFSET      BUFFER_OFFSET(sizeof(GLfloat)*2)
++#define CLR_OFFSET      BUFFER_OFFSET(sizeof(GLfloat)*2)
++#define VTX_OFFSET      BUFFER_OFFSET(sizeof(GLfloat)*6)
++#endif
++
+ //
+ // Textures List
+ //
+@@ -146,6 +156,11 @@
+ 	~Model();
+ 	void deallocate();
+ 	Model();
++
++#if defined(USE_GLES)
++	GLuint BufferName;
++#endif
++
+ };
+ 
+ #endif
+diff -r 97b303e79826 Source/Objects.cpp
+--- a/Source/Objects.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Objects.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -98,8 +98,10 @@
+ 				hidden=!(findDistancefastflat(&viewer,&position[i])>playerdist+3||(type[i]!=bushtype&&type[i]!=treeleavestype));
+ 				if(!hidden){
+ 
++#if !defined(USE_GLES)
+ 					if(detail==2&&distance>viewdistance*viewdistance/4&&environment==desertenvironment)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, blurness );
+ 					else glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0 );
++#endif
+ 					distance=(viewdistance*viewdistance-(distance-(viewdistance*viewdistance*fadestart))*(1/(1-fadestart)))/viewdistance/viewdistance;
+ 					if(distance>1)distance=1;
+ 					if(distance>0){
+@@ -327,7 +329,9 @@
+ 		}
+ 	}
+ 
++#if !defined(USE_GLES)
+ 	glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0 );
++#endif
+ 	for(i=0;i<numobjects;i++){
+ 		if(type[i]==treeleavestype||type[i]==bushtype){
+ 			moved=DoRotation(model[i].boundingspherecenter,0,rotation[i],0);
+@@ -469,7 +473,9 @@
+ 			}
+ 		}
+ 	}
++#if !defined(USE_GLES)
+ 	if(environment==desertenvironment)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0 );
++#endif
+ 	glEnable(GL_ALPHA_TEST);						
+ 	SetUpLight(&light,0);
+ }
+@@ -733,22 +739,22 @@
+ 								Normalise(&col);
+ 								for(k=0;k<model[i].TriangleNum;k++){
+ 									if(model[i].Triangles[k].vertex[0]==j){
+-										l=k*24;
++										l=k*MAX_ARRAY_STRIDE;
+ 										model[i].vArray[l+2]=col.x;
+ 										model[i].vArray[l+3]=col.y;
+ 										model[i].vArray[l+4]=col.z;
+ 									}
+ 									if(model[i].Triangles[k].vertex[1]==j){
+-										l=k*24;
+-										model[i].vArray[l+10]=col.x;
+-										model[i].vArray[l+11]=col.y;
+-										model[i].vArray[l+12]=col.z;
++										l=k*MAX_ARRAY_STRIDE;
++										model[i].vArray[l+11]=col.x;
++										model[i].vArray[l+12]=col.y;
++										model[i].vArray[l+13]=col.z;
+ 									}
+ 									if(model[i].Triangles[k].vertex[2]==j){
+-										l=k*24;
+-										model[i].vArray[l+18]=col.x;
+-										model[i].vArray[l+19]=col.y;
+-										model[i].vArray[l+20]=col.z;
++										l=k*MAX_ARRAY_STRIDE;
++										model[i].vArray[l+20]=col.x;
++										model[i].vArray[l+21]=col.y;
++										model[i].vArray[l+22]=col.z;
+ 									}
+ 								}
+ 							}
+diff -r 97b303e79826 Source/OpenGL_Windows.cpp
+--- a/Source/OpenGL_Windows.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/OpenGL_Windows.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -177,12 +177,14 @@
+ #pragma warning(disable: 4273)
+ #endif
+ 
++#if !defined(USE_GLES)
+ #define GL_FUNC(ret,fn,params,call,rt) \
+     extern "C" { \
+         static ret (GLAPIENTRY *p##fn) params = NULL; \
+         ret GLAPIENTRY fn params { rt p##fn call; } \
+     }
+ #include "glstubs.h"
++#endif
+ #undef GL_FUNC
+ 
+ #ifdef _MSC_VER
+@@ -203,17 +205,21 @@
+ static bool lookup_all_glsyms(void)
+ {
+     bool retval = true;
++#if !defined(USE_GLES)
+     #define GL_FUNC(ret,fn,params,call,rt) \
+         if (!lookup_glsym(#fn, (void **) &p##fn)) retval = false;
+     #include "glstubs.h"
+     #undef GL_FUNC
++#endif
+     return retval;
+ }
+ 
++#if !defined(USE_GLES)
+ static void GLAPIENTRY glDeleteTextures_doNothing(GLsizei n, const GLuint *textures)
+ {
+     // no-op.
+ }
++#endif
+ 
+ 
+ 
+@@ -225,7 +231,9 @@
+     pt->y = y;
+ }
+ #define GetCursorPos(x) sdlGetCursorPos(x)
++#if !defined(PANDORA)
+ #define SetCursorPos(x, y) SDL_WarpMouse(x, y)
++#endif
+ #define ScreenToClient(x, pt)
+ #define ClientToScreen(x, pt)
+ #ifdef MessageBox
+@@ -500,6 +508,7 @@
+                 if (e.key.keysym.mod & KMOD_CTRL)
+                 {
+                     skipkey = true;
++#if !defined(PANDORA)
+                     SDL_GrabMode mode = SDL_GRAB_ON;
+                     if ((SDL_GetVideoSurface()->flags & SDL_FULLSCREEN) == 0)
+                     {
+@@ -507,6 +516,7 @@
+                         mode = (mode==SDL_GRAB_ON) ? SDL_GRAB_OFF:SDL_GRAB_ON;
+                     }
+                     SDL_WM_GrabInput(mode);
++#endif
+                 }
+             }
+ 
+@@ -869,13 +879,18 @@
+             fprintf(stderr, "SDL_Init() failed: %s\n", SDL_GetError());
+             return false;
+         }
++#if defined(PLATFORM_PANDORA)
++        EGL_Open();
++#endif
+ 
++#if !defined(PLATFORM_PANDORA)
+         if (SDL_GL_LoadLibrary(NULL) == -1)
+         {
+             fprintf(stderr, "SDL_GL_LoadLibrary() failed: %s\n", SDL_GetError());
+             SDL_Quit();
+             return false;
+         }
++#endif
+ 
+         SDL_Rect **res = SDL_ListModes(NULL, SDL_FULLSCREEN|SDL_OPENGL);
+         if ( (res == NULL) || (res == ((SDL_Rect **)-1)) || (res[0] == NULL) || (res[0]->w < 640) || (res[0]->h < 480) )
+@@ -914,7 +929,11 @@
+         }
+     }
+ 
++#if defined(PLATFORM_PANDORA)
++    Uint32 sdlflags = SDL_SWSURFACE;
++#else
+     Uint32 sdlflags = SDL_OPENGL;
++#endif
+     if (!cmdline("windowed"))
+         sdlflags |= SDL_FULLSCREEN;
+ 
+@@ -922,7 +941,9 @@
+ 
+     SDL_ShowCursor(0);
+ 
++#if !defined(PLATFORM_PANDORA)
+     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
++#endif
+ 
+     if (SDL_SetVideoMode(kContextWidth, kContextHeight, 0, sdlflags) == NULL)
+     {
+@@ -942,7 +963,11 @@
+             }
+         }
+     }
++#if defined(PLATFORM_PANDORA)
++    EGL_Init();
++#endif
+ 
++#if !defined(PLATFORM_PANDORA)
+     int dblbuf = 0;
+     if ((SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &dblbuf) == -1) || (!dblbuf))
+     {
+@@ -950,6 +975,7 @@
+         SDL_Quit();
+         return false;
+     }
++#endif
+ 
+     if (!lookup_all_glsyms())
+     {
+@@ -957,9 +983,10 @@
+         return false;
+     }
+ 
++#if !defined(PANDORA)
+     if (!cmdline("nomousegrab"))
+         SDL_WM_GrabInput(SDL_GRAB_ON);
+-
++#endif
+ 
+ 	glClear( GL_COLOR_BUFFER_BIT );
+ 	swap_gl_buffers();
+@@ -971,10 +998,15 @@
+ 	//	glDisable( GL_DITHER);
+ 	glDisable( GL_FOG);
+ 	glDisable( GL_LIGHTING);
++#if !defined(USE_GLES)
+ 	glDisable( GL_LOGIC_OP);
++#endif
+ 	glDisable( GL_STENCIL_TEST);
++#if !defined(USE_GLES)
+ 	glDisable( GL_TEXTURE_1D);
++#endif
+ 	glDisable( GL_TEXTURE_2D);
++#if !defined(USE_GLES)
+ 	glPixelTransferi( GL_MAP_COLOR, GL_FALSE);
+ 	glPixelTransferi( GL_RED_SCALE, 1);
+ 	glPixelTransferi( GL_RED_BIAS, 0);
+@@ -984,7 +1016,7 @@
+ 	glPixelTransferi( GL_BLUE_BIAS, 0);
+ 	glPixelTransferi( GL_ALPHA_SCALE, 1);
+ 	glPixelTransferi( GL_ALPHA_BIAS, 0);
+-
++#endif
+ 	// set initial rendering states
+ 	glShadeModel( GL_SMOOTH);
+ 	glClearDepth( 1.0f);
+@@ -1061,6 +1093,7 @@
+ 	static AbsoluteTime time = {0,0};
+ 	static AbsoluteTime frametime = {0,0};
+ 	AbsoluteTime currTime = UpTime ();
++
+ 	double deltaTime = (float) AbsoluteDeltaToDuration (currTime, frametime);
+ 
+ 	if (0 > deltaTime)	// if negative microseconds
+@@ -1173,18 +1206,20 @@
+ 	LOGFUNC;
+ 
+ //	game.Dispose();
++#if defined(PLATFORM_PANDORA)
++    EGL_Close();
++#endif
++    SDL_Quit();
+ 
+-
+-
+-
+-    SDL_Quit();
++#if !defined(USE_GLES)
+     #define GL_FUNC(ret,fn,params,call,rt) p##fn = NULL;
+     #include "glstubs.h"
+     #undef GL_FUNC
++
+     // cheat here...static destructors are calling glDeleteTexture() after
+     //  the context is destroyed and libGL unloaded by SDL_Quit().
+     pglDeleteTextures = glDeleteTextures_doNothing;
+-
++#endif
+ }
+ 
+ // --------------------------------------------------------------------------
+diff -r 97b303e79826 Source/Person.cpp
+--- a/Source/Person.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Person.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -965,9 +965,13 @@
+ 			glBindTexture(GL_TEXTURE_2D,skeleton.drawmodel.textureptr);
+ 
+ 			if(!howmanylevels){
++#if !defined(USE_GLES)
+ 				if(!osx)glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS,GL_TRUE);
++#endif
+ 				glTexSubImage2D(GL_TEXTURE_2D,0,starty,startx,endy-starty,endx-startx,GL_RGB,GL_UNSIGNED_BYTE,texturearray);
++#if !defined(USE_GLES)
+ 				if(!osx)glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS,GL_FALSE);
++#endif
+ 			}
+ 
+ 			newsize=skeleton.skinsize;
+@@ -7128,6 +7132,7 @@
+ 										glTranslatef((skeleton.model[start].vertex[skeleton.muscles[i].vertices[j]].x*(1-morphness)+skeleton.model[endthing].vertex[skeleton.muscles[i].vertices[j]].x*morphness)*proportionhead.x,
+ 										(skeleton.model[start].vertex[skeleton.muscles[i].vertices[j]].y*(1-morphness)+skeleton.model[endthing].vertex[skeleton.muscles[i].vertices[j]].y*morphness)*proportionhead.y,
+ 										(skeleton.model[start].vertex[skeleton.muscles[i].vertices[j]].z*(1-morphness)+skeleton.model[endthing].vertex[skeleton.muscles[i].vertices[j]].z*morphness)*proportionhead.z);
++
+ 									glGetFloatv(GL_MODELVIEW_MATRIX,M);
+ 									//if(!isnormal(M[12])||!isnormal(M[13])||!isnormal(M[14]))test=0;
+ 									//if(isnormal(M[12])&&isnormal(M[13])&&isnormal(M[14])){
+@@ -7214,6 +7219,7 @@
+ 									glTranslatef((skeleton.modelclothes.vertex[skeleton.muscles[i].verticesclothes[j]].x)*proportionhead.x,
+ 									(skeleton.modelclothes.vertex[skeleton.muscles[i].verticesclothes[j]].y)*proportionhead.y,
+ 									(skeleton.modelclothes.vertex[skeleton.muscles[i].verticesclothes[j]].z)*proportionhead.z);
++
+ 								glGetFloatv(GL_MODELVIEW_MATRIX,M);
+ 								skeleton.drawmodelclothes.vertex[skeleton.muscles[i].verticesclothes[j]].x=M[12]*scale;
+ 								skeleton.drawmodelclothes.vertex[skeleton.muscles[i].verticesclothes[j]].y=M[13]*scale;
+@@ -7258,25 +7264,72 @@
+ 			glColor4f(.4,1,.4,1);
+ 			glDisable(GL_LIGHTING);
+ 			glDisable(GL_TEXTURE_2D);
++#if defined(USE_GLES)
++            GLfloat vtxP[skeleton.drawmodel.vertexNum*3];
++            GLfloat vtxL[skeleton.drawmodel.TriangleNum*18];
++
++            glEnableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_POINTS);
++#endif
+ 			if(playerdetail)
+ 				for(i=0;i<skeleton.drawmodel.vertexNum;i++){
++#if defined(USE_GLES)
++                    vtxP[(i*3)+0] = skeleton.drawmodel.vertex[i].x;
++                    vtxP[(i*3)+1] = skeleton.drawmodel.vertex[i].y;
++                    vtxP[(i*3)+2] = skeleton.drawmodel.vertex[i].z;
++#else
+ 					glVertex3f(skeleton.drawmodel.vertex[i].x,skeleton.drawmodel.vertex[i].y,skeleton.drawmodel.vertex[i].z);
+-				}
++#endif
++				}
++
++#if defined(USE_GLES)
++                glVertexPointer(3, GL_FLOAT, 0, vtxP);
++                glDrawArrays(GL_POINTS, 0, skeleton.drawmodel.vertexNum);
++#else
+ 				glEnd();
++
+ 				glBegin(GL_LINES);
+-
++#endif
+ 				if(playerdetail)
+ 					for(i=0;i<skeleton.drawmodel.TriangleNum;i++){
++#if defined(USE_GLES)
++						vtxL[(i*18)+0] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].x;
++						vtxL[(i*18)+1] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].y;
++						vtxL[(i*18)+2] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].z;
++						vtxL[(i*18)+3] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].x;
++						vtxL[(i*18)+4] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].y;
++						vtxL[(i*18)+5] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].z;
++						vtxL[(i*18)+6] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].x;
++						vtxL[(i*18)+7] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].y;
++						vtxL[(i*18)+8] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].z;
++						vtxL[(i*18)+9] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].x;
++						vtxL[(i*18)+10] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].y;
++						vtxL[(i*18)+11] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].z;
++						vtxL[(i*18)+12] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].x;
++						vtxL[(i*18)+13] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].y;
++						vtxL[(i*18)+14] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].z;
++						vtxL[(i*18)+15] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].x;
++						vtxL[(i*18)+16] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].y;
++						vtxL[(i*18)+17] = skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].z;
++#else
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].z);
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].z);
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[1]].z);
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].z);
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[2]].z);
+ 						glVertex3f(skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].x,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].y,skeleton.drawmodel.vertex[skeleton.drawmodel.Triangles[i].vertex[0]].z);
+-					}
+-
++#endif
++					}
++
++#if defined(USE_GLES)
++                glVertexPointer(3, GL_FLOAT, 0, vtxL);
++                glDrawArrays(GL_LINES, 0, skeleton.drawmodel.TriangleNum*6);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 				glEnd();
++#endif
+ 		}
+ 
+ 		terrainlight=terrain.getLighting(coords.x,coords.z);
+diff -r 97b303e79826 Source/Quaternions.cpp
+--- a/Source/Quaternions.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Quaternions.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -47,7 +47,6 @@
+ {
+ 	// From Jason Shankel, (C) 2000.
+ 	static quaternion Quat;
+-
+ 	static double Tr = m[0][0] + m[1][1] + m[2][2] + 1.0, fourD;
+ 	static double q[4];
+ 
+diff -r 97b303e79826 Source/Skeleton.cpp
+--- a/Source/Skeleton.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Skeleton.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -742,6 +742,51 @@
+ 	glDepthMask(0);
+ 	glEnable(GL_BLEND);
+ 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
++#if defined(USE_GLES)
++    GLfloat vtx[12];
++    GLfloat clr[16];
++
++    glEnableClientState(GL_VERTEX_ARRAY);
++    glEnableClientState(GL_COLOR_ARRAY);
++
++	for(int i=0; i<num_joints; i++){
++		if(joints[i].hasparent){
++			clr[0] = jointcolor[0];  clr[1] = jointcolor[1];    clr[2] = jointcolor[2];     clr[3] = jointcolor[3]/joints[i].blurred;
++			clr[4] = jointcolor[0];  clr[5] = jointcolor[1];    clr[6] = jointcolor[2];     clr[7] = jointcolor[3]/joints[i].parent->blurred;
++			clr[8] = jointcolor[0];  clr[9] = jointcolor[1];    clr[10] = jointcolor[2];    clr[11] = jointcolor[3]/joints[i].parent->blurred;
++			clr[12] = jointcolor[0]; clr[13] = jointcolor[1];   clr[14] = jointcolor[2];    clr[15] = jointcolor[3]/joints[i].blurred;
++
++			vtx[0] = joints[i].position.x;              vtx[1] = joints[i].position.y;              vtx[2] = joints[i].position.z;
++			vtx[3] = joints[i].parent->position.x;      vtx[4] = joints[i].parent->position.y;      vtx[5] = joints[i].parent->position.z;
++			vtx[6] = joints[i].parent->oldposition.x;   vtx[7] = joints[i].parent->oldposition.y;   vtx[8] = joints[i].parent->oldposition.z;
++			vtx[9] = joints[i].oldposition.x;           vtx[10] = joints[i].oldposition.y;          vtx[11] = joints[i].oldposition.z;
++
++            glVertexPointer(3, GL_FLOAT, 0, vtx);
++            glColorPointer(4, GL_FLOAT, 0, clr);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++		}
++	}
++	for(int i=0; i<num_muscles; i++){
++		if(muscles[i].type==boneconnect){
++			clr[0] = jointcolor[0];  clr[1] = jointcolor[1];    clr[2] = jointcolor[2];     clr[3] = jointcolor[3]/muscles[i].parent2->blurred;
++			clr[4] = jointcolor[0];  clr[5] = jointcolor[1];    clr[6] = jointcolor[2];     clr[7] = jointcolor[3]/muscles[i].parent2->blurred;
++			clr[8] = jointcolor[0];  clr[9] = jointcolor[1];    clr[10] = jointcolor[2];    clr[11] = jointcolor[3]/muscles[i].parent2->blurred;
++			clr[12] = jointcolor[0]; clr[13] = jointcolor[1];   clr[14] = jointcolor[2];    clr[15] = jointcolor[3]/muscles[i].parent1->blurred;
++
++			vtx[0] = muscles[i].parent1->position.x;      vtx[1] = muscles[i].parent1->position.y;      vtx[2] = muscles[i].parent1->position.z;
++			vtx[3] = muscles[i].parent2->position.x;      vtx[4] = muscles[i].parent2->position.y;      vtx[5] = muscles[i].parent2->position.z;
++			vtx[6] = muscles[i].parent2->oldposition.x;   vtx[7] = muscles[i].parent2->oldposition.y;   vtx[8] = muscles[i].parent2->oldposition.z;
++			vtx[9] = muscles[i].parent1->oldposition.x;   vtx[10] = muscles[i].parent1->oldposition.y;  vtx[11] = muscles[i].parent1->oldposition.z;
++
++            glVertexPointer(3, GL_FLOAT, 0, vtx);
++            glColorPointer(4, GL_FLOAT, 0, clr);
++            glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++		}
++	}
++
++    glDisableClientState(GL_VERTEX_ARRAY);
++    glDisableClientState(GL_COLOR_ARRAY);
++#else
+ 	glBegin(GL_QUADS);
+ 	for(int i=0; i<num_joints; i++){
+ 		if(joints[i].hasparent){
+@@ -768,14 +813,38 @@
+ 		}
+ 	}
+ 	glEnd();
++#endif
+ 
++#if defined(USE_GLES)
++    GLfloat vtxJ[num_joints*6];
++    GLfloat clrJ[num_joints*8];
++    GLfloat vtxM[num_muscles*6];
++    GLfloat clrM[num_muscles*8];
++    GLfloat vtxM2[num_muscles*6];
++    GLfloat vtxJ2[3];
++
++    glEnableClientState(GL_VERTEX_ARRAY);
++    glEnableClientState(GL_COLOR_ARRAY);
++#else
+ 	glBegin(GL_LINES);
++#endif
+ 	for(int i=0; i<num_joints; i++){
+ 		if(joints[i].hasparent){
++#if defined(USE_GLES)
++            clrJ[(i*8)+0] = jointcolor[0];   clrJ[(i*8)+1] = jointcolor[1];   clrJ[(i*8)+2] = jointcolor[2];   clrJ[(i*8)+3] = jointcolor[3]/joints[i].blurred;
++            clrJ[(i*8)+4] = jointcolor[0];   clrJ[(i*8)+5] = jointcolor[1];   clrJ[(i*8)+6] = jointcolor[2];   clrJ[(i*8)+7] = jointcolor[3]/joints[i].parent->blurred;
++            vtxJ[(i*6)+0] = joints[i].position.x;            vtxJ[(i*6)+1] = joints[i].position.y;            vtxJ[(i*6)+2] = joints[i].position.z;
++            vtxJ[(i*6)+3] = joints[i].parent->position.x;    vtxJ[(i*6)+4] = joints[i].parent->position.y;    vtxJ[(i*6)+5] = joints[i].parent->position.z;
++
++            glVertexPointer(3, GL_FLOAT, 0, vtxJ);
++            glColorPointer(4, GL_FLOAT, 0, clrJ);
++            glDrawArrays(GL_LINES, 0, num_joints*2);
++#else
+ 			glColor4f(jointcolor[0],jointcolor[1],jointcolor[2],jointcolor[3]/joints[i].blurred);
+ 			glVertex3f(joints[i].position.x,joints[i].position.y,joints[i].position.z);
+ 			glColor4f(jointcolor[0],jointcolor[1],jointcolor[2],jointcolor[3]/joints[i].parent->blurred);
+ 			glVertex3f(joints[i].parent->position.x,joints[i].parent->position.y,joints[i].parent->position.z);
++#endif
+ 		}
+ 	}
+ 	/*for(int i=0; i<num_joints; i++){
+@@ -788,32 +857,75 @@
+ 	}*/
+ 	for(int i=0; i<num_muscles; i++){
+ 		if(muscles[i].type==boneconnect){
++#if defined(USE_GLES)
++            clrM[(i*8)+0] = jointcolor[0];   clrM[(i*8)+1] = jointcolor[1];   clrM[(i*8)+2] = jointcolor[2];   clrM[(i*8)+3] = jointcolor[3]/muscles[i].parent1->blurred;
++            clrM[(i*8)+4] = jointcolor[0];   clrM[(i*8)+5] = jointcolor[1];   clrM[(i*8)+6] = jointcolor[2];   clrM[(i*8)+7] = jointcolor[3]/muscles[i].parent2->blurred;
++            vtxM[(i*6)+0] = muscles[i].parent1->position.x;     vtxM[(i*6)+1] = muscles[i].parent1->position.y;     vtxM[(i*6)+2] = muscles[i].parent1->position.z;
++            vtxM[(i*6)+3] = muscles[i].parent2->position.x;     vtxM[(i*6)+4] = muscles[i].parent2->position.y;     vtxM[(i*6)+5] = muscles[i].parent2->position.z;
++
++            glVertexPointer(3, GL_FLOAT, 0, vtxM);
++            glColorPointer(4, GL_FLOAT, 0, clrM);
++            glDrawArrays(GL_LINES, 0, num_muscles*2);
++#else
+ 			glColor4f(jointcolor[0],jointcolor[1],jointcolor[2],jointcolor[3]/muscles[i].parent1->blurred);
+ 			glVertex3f(muscles[i].parent1->position.x,muscles[i].parent1->position.y,muscles[i].parent1->position.z);
+ 			glColor4f(jointcolor[0],jointcolor[1],jointcolor[2],jointcolor[3]/muscles[i].parent2->blurred);
+ 			glVertex3f(muscles[i].parent2->position.x,muscles[i].parent2->position.y,muscles[i].parent2->position.z);
++#endif
+ 		}
+ 	}
++#if defined(USE_GLES)
++	glColor4f(.6,.6,0,1.0);
++#else
+ 	glColor3f(.6,.6,0);
++#endif
+ 	if(muscleview==1)
+ 		for(int i=0; i<num_muscles; i++){
+ 			if(muscles[i].type!=boneconnect){
++#if defined(USE_GLES)
++                vtxM2[(i*6)+0] = muscles[i].parent1->position.x;     vtxM2[(i*6)+1] = muscles[i].parent1->position.y;     vtxM2[(i*6)+2] = muscles[i].parent1->position.z;
++                vtxM2[(i*6)+3] = muscles[i].parent2->position.x;     vtxM2[(i*6)+4] = muscles[i].parent2->position.y;     vtxM2[(i*6)+5] = muscles[i].parent2->position.z;
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxM2);
++                glDrawArrays(GL_LINES, 0, num_muscles*2);
++#else
+ 				glVertex3f(muscles[i].parent1->position.x,muscles[i].parent1->position.y,muscles[i].parent1->position.z);
+ 				glVertex3f(muscles[i].parent2->position.x,muscles[i].parent2->position.y,muscles[i].parent2->position.z);
++#endif
+ 			}
+ 		}
++#if defined(USE_GLES)
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_COLOR_ARRAY);
++#else
+ 		glEnd();
++#endif
+ 
+ 		if(muscleview!=2){
+ 			glPointSize(3);
++#if defined(USE_GLES)
++            glEnableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glBegin(GL_POINTS);
++#endif
+ 			for(int i=0; i<num_joints; i++){
+ 				if(i!=selected)glColor4f(0,0,.5,1);
+ 				if(i==selected)glColor4f(1,1,0,1);
+ 				if(joints[i].locked&&i!=selected)glColor4f(1,0,0,1);
++#if defined(USE_GLES)
++                vtxJ2[0] = joints[i].position.x;    vtxJ2[1] = joints[i].position.y;    vtxJ2[2] = joints[i].position.z;
++
++                glVertexPointer(3, GL_FLOAT, 0, vtxJ2);
++                glDrawArrays(GL_POINTS, 0, 1);
++#else
+ 				glVertex3f(joints[i].position.x,joints[i].position.y,joints[i].position.z);
++#endif
+ 			}
++#if defined(USE_GLES)
++            glDisableClientState(GL_VERTEX_ARRAY);
++#else
+ 			glEnd();
++#endif
+ 		}
+ 
+ 		//Set old position to current position
+diff -r 97b303e79826 Source/Skybox.cpp
+--- a/Source/Skybox.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Skybox.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -258,19 +258,147 @@
+ 	static float size=viewdistance/4;
+ 	glPushMatrix();
+ 	static GLfloat M[16];
++
++#if defined(USE_GLES)
++    static float old_size;
++    int offset;
++    int vtx_size, tex_size;
++
++    static int vtxA_Offset, vtxB_Offset, vtxC_Offset, vtxD_Offset, vtxE_Offset, vtxF_Offset;
++    static int texA_Offset, texB_Offset, texC_Offset;
++
++    GLfloat vtxA[] = {
++        -size, -size,   size,
++         size, -size,   size,
++         size,  size,   size,
++        -size,  size,   size
++    };
++
++    GLfloat vtxB[] = {
++        -size, -size,  -size,
++        -size,  size,  -size,
++         size,  size,  -size,
++         size, -size,  -size
++    };
++
++    GLfloat vtxC[] = {
++        -size,  size,  -size,
++        -size,  size,   size,
++         size,  size,   size,
++         size,  size,  -size
++    };
++
++    GLfloat vtxD[] = {
++        -size, -size,  -size,
++         size, -size,  -size,
++         size, -size,   size,
++        -size, -size,   size
++    };
++
++    GLfloat vtxE[] = {
++         size, -size,  -size,
++         size,  size,  -size,
++         size,  size,   size,
++         size, -size,   size
++    };
++
++    GLfloat vtxF[] = {
++         -size, -size, -size,
++         -size, -size,  size,
++         -size,  size,  size,
++         -size,  size, -size
++    };
++
++    GLfloat texA[] = {
++        0,      0,
++        1,      0,
++        1,      1,
++        0,      1
++    };
++
++    GLfloat texB[] = {
++        1,      0,
++        1,      1,
++        0,      1,
++        0,      0
++    };
++
++    GLfloat texC[] = {
++        0,      1,
++        0,      0,
++        1,      0,
++        1,      1
++    };
++
++
++    vtx_size = sizeof(GLfloat)*12;
++    tex_size = sizeof(GLfloat)*8;
++
++    if(!BufferName) {
++        glGenBuffers(1, &BufferName);
++
++        glBindBuffer(GL_ARRAY_BUFFER, BufferName);
++        glBufferData(GL_ARRAY_BUFFER, (vtx_size*6)+(tex_size*3), NULL, GL_STATIC_DRAW);
++    }
++    else
++    {
++        glBindBuffer(GL_ARRAY_BUFFER, BufferName);
++    }
++
++
++    if (old_size!=size)
++    {
++        vtxA_Offset = offset = 0;
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxA);
++        vtxB_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxB);
++        vtxC_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxC);
++        vtxD_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxD);
++        vtxE_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxE);
++        vtxF_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, vtx_size, vtxF);
++        texA_Offset = (offset += vtx_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, tex_size, texA);
++        texB_Offset = (offset += tex_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, tex_size, texB);
++        texC_Offset = (offset += tex_size);
++        glBufferSubData(GL_ARRAY_BUFFER, offset, tex_size, texC);
++    }
++#endif
++
+ 	glGetFloatv(GL_MODELVIEW_MATRIX,M);
++
+ 	M[12]=0;
+ 	M[13]=0;
+ 	M[14]=0;
+ 	glLoadMatrixf(M);
+ 	//if(environment==2)glTranslatef(0,blurness*viewdistance/1000,0);
+ 	if(environment==2)glScalef(1+blurness/1000,1,1+blurness/1000);
+-	if(environment!=2)glColor3f(.85*skyboxr,.85*skyboxg,.95*skyboxb);
+-	else glColor3f(1*skyboxr,.95*skyboxg,.95*skyboxb);
++	if(environment!=2) {
++#if defined(USE_GLES)
++        glColor4f(.85*skyboxr,.85*skyboxg,.95*skyboxb,1.0);
++#else
++        glColor3f(.85*skyboxr,.85*skyboxg,.95*skyboxb);
++#endif
++	}
++	else {
++#if defined(USE_GLES)
++        glColor4f(1*skyboxr,.95*skyboxg,.95*skyboxb,1.0);
++#else
++        glColor3f(1*skyboxr,.95*skyboxg,.95*skyboxb);
++#endif
++	}
+ 
+ 	if(!skyboxtexture){
+ 		glDisable(GL_TEXTURE_2D); 
++#if defined(USE_GLES)
++		glColor4f(skyboxr*.8,skyboxg*.8,skyboxb*.8,1.0);
++#else
+ 		glColor3f(skyboxr*.8,skyboxg*.8,skyboxb*.8);
++#endif
+ 	}
+ 	glDepthMask(0);
+ 	glDisable(GL_CULL_FACE);
+@@ -282,6 +410,15 @@
+ 	glBindTexture(GL_TEXTURE_2D, front); 
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++    glEnableClientState(GL_VERTEX_ARRAY);
++    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++	glNormal3f( 0.0f, 0.0f, -1);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxA_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texA_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( 0.0f, 0.0f, -1);
+ 	glTexCoord2f(0, 0); glVertex3f(-size, -size,  size);
+@@ -289,9 +426,16 @@
+ 	glTexCoord2f(1, 1); glVertex3f( size,  size,  size);
+ 	glTexCoord2f(0, 1); glVertex3f(-size,  size,  size);
+ 	glEnd();
++#endif
+ 	glBindTexture(GL_TEXTURE_2D, back);
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++	glNormal3f( 0.0f, 0.0f, 1);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxB_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texB_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( 0.0f, 0.0f, 1);
+ 	glTexCoord2f(1, 0); glVertex3f(-size, -size, -size);
+@@ -299,9 +443,16 @@
+ 	glTexCoord2f(0, 1); glVertex3f( size,  size, -size);
+ 	glTexCoord2f(0, 0); glVertex3f( size, -size, -size);
+ 	glEnd();
++#endif
+ 	glBindTexture(GL_TEXTURE_2D, up);
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++	glNormal3f( 0.0f, -1.0f, 0);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxC_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texC_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( 0.0f, -1.0f, 0);
+ 	glTexCoord2f(0, 1); glVertex3f(-size,  size, -size);
+@@ -309,22 +460,35 @@
+ 	glTexCoord2f(1, 0); glVertex3f( size,  size,  size);
+ 	glTexCoord2f(1, 1); glVertex3f( size,  size, -size);
+ 	glEnd();
++#endif
+ 	//if(detail!=0){
+ 	glBindTexture(GL_TEXTURE_2D, down);
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++	glNormal3f( 0.0f, 1.0f, 0);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxD_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texA_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( 0.0f, 1.0f, 0);
+-
+ 	glTexCoord2f(0, 0); glVertex3f(-size, -size, -size);
+ 	glTexCoord2f(1, 0); glVertex3f( size, -size, -size);
+ 	glTexCoord2f(1, 1); glVertex3f( size, -size,  size);
+ 	glTexCoord2f(0, 1); glVertex3f(-size, -size,  size);
+ 	glEnd();
++#endif
+ 	//}
+ 	glBindTexture(GL_TEXTURE_2D, right);
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++	glNormal3f( -1.0f, 0.0f, 0);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxE_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texB_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( -1.0f, 0.0f, 0);
+ 	glTexCoord2f(1, 0); glVertex3f( size, -size, -size);
+@@ -332,9 +496,19 @@
+ 	glTexCoord2f(0, 1); glVertex3f( size,  size,  size);
+ 	glTexCoord2f(0, 0); glVertex3f( size, -size,  size);
+ 	glEnd();
++#endif
+ 	glBindTexture(GL_TEXTURE_2D, left);
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+ 	glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
++#if defined(USE_GLES)
++	glNormal3f( 1.0f, 0.0f, 0);
++    glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(vtxF_Offset));
++    glTexCoordPointer(2, GL_FLOAT, 0, BUFFER_OFFSET(texA_Offset));
++    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++    glDisableClientState(GL_VERTEX_ARRAY);
++    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 	glBegin(GL_QUADS);
+ 	glNormal3f( 1.0f, 0.0f, 0);
+ 	glTexCoord2f(0, 0); glVertex3f(-size, -size, -size);
+@@ -342,6 +516,7 @@
+ 	glTexCoord2f(1, 1); glVertex3f(-size,  size,  size);
+ 	glTexCoord2f(0, 1); glVertex3f(-size,  size, -size);
+ 	glEnd();
++#endif
+ 	/*
+ 	glEnable(GL_BLEND);
+ 	glColor4f(1,1,1,1);
+@@ -359,12 +534,21 @@
+ 	glEnable(GL_CULL_FACE);
+ 	glDepthMask(1);
+ 	glPopMatrix();
++
++#if defined(USE_GLES)
++    glBindBuffer(GL_ARRAY_BUFFER,0);
++
++    old_size = size;
++#endif
+ }
+ 
+ SkyBox::SkyBox()
+ {
+ 	front = 0,left = 0,back = 0,right = 0,up = 0,down = 0,cloud = 0,reflect = 0;
+ 	cloudmove = 0;
++#if defined(USE_GLES)
++	BufferName = 0;
++#endif
+ }
+ SkyBox::~SkyBox()
+ {
+@@ -376,5 +560,8 @@
+ 	if (down) glDeleteTextures( 1, &down );
+ 	if (cloud) glDeleteTextures( 1, &cloud );
+ 	if (reflect) glDeleteTextures( 1, &reflect );
++#if defined(USE_GLES)
++    glDeleteBuffers(1, &BufferName);
++#endif
+ };
+ 
+diff -r 97b303e79826 Source/Skybox.h
+--- a/Source/Skybox.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Skybox.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -31,6 +31,9 @@
+ public:
+ 	GLuint 				front,left,back,right,up,down,cloud,reflect;
+ 	float cloudmove;
++#if defined(USE_GLES)
++    GLuint BufferName;
++#endif
+ 
+ 	bool load(const char *ffront,const char *fleft,const char *fback,const char *fright,const char *fup,const char *fdown,const char *fcloud,const char *freflect);
+ 	void draw();
+diff -r 97b303e79826 Source/Sprites.cpp
+--- a/Source/Sprites.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Sprites.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -191,6 +191,7 @@
+ 				glRotatef(rotation[i]*.2,0,.3,1);
+ 				glTranslatef(1,0,0);
+ 			}
++
+ 			glGetFloatv(GL_MODELVIEW_MATRIX,M);
+ 			point.x=M[12];
+ 			point.y=M[13];
+@@ -229,6 +230,34 @@
+ 			glTranslatef(1,0,0);
+ 			}*/
+ 
++#if defined(USE_GLES)
++            GLfloat vtx[] = {
++                 .5*size[i],     .5*size[i],    0.0f,
++                -.5*size[i],     .5*size[i],    0.0f,
++                 .5*size[i],    -.5*size[i],    0.0f,
++                -.5*size[i],    -.5*size[i],    0.0f,
++                 .5*size[i],    -.5*size[i],    0.0f,
++                -.5*size[i],     .5*size[i],    0.0f
++            };
++            GLfloat tex[] = {
++                1.0f, 1.0f,
++                0.0f, 1.0f,
++                1.0f, 0.0f,
++                0.0f, 0.0f,
++                1.0f, 0.0f,
++                0.0f, 1.0f
++            };
++
++            glEnableClientState(GL_VERTEX_ARRAY);
++            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++            glVertexPointer(3, GL_FLOAT, 0, vtx);
++            glTexCoordPointer(2, GL_FLOAT, 0, tex);
++            glDrawArrays(GL_TRIANGLES, 0, 6);
++
++            glDisableClientState(GL_VERTEX_ARRAY);
++            glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 			glBegin(GL_TRIANGLES);
+ 			glTexCoord2f(1.0f, 1.0f); glVertex3f( .5*size[i], .5*size[i], 0.0f);
+ 			glTexCoord2f(0.0f, 1.0f); glVertex3f(-.5*size[i], .5*size[i], 0.0f);
+@@ -237,6 +266,7 @@
+ 			glTexCoord2f(1.0f, 0.0f); glVertex3f( .5*size[i], -.5*size[i], 0.0f);
+ 			glTexCoord2f(0.0f, 1.0f); glVertex3f(-.5*size[i], .5*size[i], 0.0f);
+ 			glEnd();
++#endif
+ 		glPopMatrix();
+ 	}
+ 	tempmult=multiplier;
+diff -r 97b303e79826 Source/Terrain.cpp
+--- a/Source/Terrain.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Terrain.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -699,10 +699,12 @@
+ 		UpdateTransparency(whichx,whichy);
+ 	}
+ 	glColor4f(1,1,1,1);
++
+ 	//Set up vertex array
+ 	glEnableClientState(GL_VERTEX_ARRAY);
+ 	glEnableClientState(GL_COLOR_ARRAY);
+ 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
+ 	glVertexPointer(3, GL_FLOAT, 9*sizeof(GLfloat),&vArray[0+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 	glColorPointer(4,GL_FLOAT, 9*sizeof(GLfloat),&vArray[3+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 	glTexCoordPointer(2, GL_FLOAT, 9*sizeof(GLfloat),&vArray[7+whichx*patch_elements+whichy*patch_elements*subdivision]);
+@@ -722,14 +724,15 @@
+ 	}
+ 	UpdateTransparencyother(whichx,whichy);
+ 	glColor4f(1,1,1,1);
++
+ 	//Set up vertex array
+ 	glEnableClientState(GL_VERTEX_ARRAY);
+ 	glEnableClientState(GL_COLOR_ARRAY);
+ 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
+ 	glVertexPointer(3, GL_FLOAT, 9*sizeof(GLfloat),&vArray[0+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 	glColorPointer(4,GL_FLOAT, 9*sizeof(GLfloat),&vArray[3+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 	glTexCoordPointer(2, GL_FLOAT, 9*sizeof(GLfloat),&vArray[7+whichx*patch_elements+whichy*patch_elements*subdivision]);
+-
+ 	//Draw
+ 	glDrawArrays(GL_TRIANGLES, 0, numtris[whichx][whichy]*3);
+ 
+@@ -752,10 +755,10 @@
+ 		glEnableClientState(GL_VERTEX_ARRAY);
+ 		glEnableClientState(GL_COLOR_ARRAY);
+ 		glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
+ 		glVertexPointer(3, GL_FLOAT, 9*sizeof(GLfloat),&vArray[0+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 		glColorPointer(4,GL_FLOAT, 9*sizeof(GLfloat),&vArray[3+whichx*patch_elements+whichy*patch_elements*subdivision]);
+ 		glTexCoordPointer(2, GL_FLOAT, 9*sizeof(GLfloat),&vArray[7+whichx*patch_elements+whichy*patch_elements*subdivision]);
+-
+ 		//Draw
+ 		glDrawArrays(GL_TRIANGLES, 0, numtris[whichx][whichy]*3);
+ 
+@@ -1001,8 +1004,10 @@
+ 					glPushMatrix();
+ 						if(frustum.CubeInFrustum(i*patch_size+patch_size*.5,avgypatch[i][j],j*patch_size+patch_size*.5,heightypatch[i][j]/2))
+ 						{   
++#if !defined(USE_GLES)
+ 							if(environment==desertenvironment&&distance[i][j]>viewdistsquared/4)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, blurness);
+ 							else if(environment==desertenvironment)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0 );
++#endif
+ 							if(!layer&&textureness[i][j]!=allsecond)drawpatch(i,j,opacity);
+ 							if(layer==1&&textureness[i][j]!=allfirst)drawpatchother(i,j,opacity);
+ 							if(layer==2&&textureness[i][j]!=allfirst)drawpatchotherother(i,j,opacity);
+@@ -1011,7 +1016,9 @@
+ 				}
+ 			}
+ 		}
++#if !defined(USE_GLES)
+ 		if(environment==desertenvironment)glTexEnvf( GL_TEXTURE_FILTER_CONTROL_EXT, GL_TEXTURE_LOD_BIAS_EXT, 0 );
++#endif
+ }
+ 
+ void Terrain::drawdecals()
+@@ -1111,12 +1118,36 @@
+ 
+ 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 			glPushMatrix();
++#if defined(USE_GLES)
++                GLfloat tex[6];
++                GLfloat vtx[9];
++
++				for(int j=0;j<3;j++)
++				{
++                    tex[(j*2)+0] = decaltexcoords[i][j][0];
++                    tex[(j*2)+1] = decaltexcoords[i][j][1];
++                    vtx[(j*3)+0] = decalvertex[i][j].x;
++                    vtx[(j*3)+1] = decalvertex[i][j].y;
++                    vtx[(j*3)+2] = decalvertex[i][j].z;
++				}
++
++                glEnableClientState(GL_VERTEX_ARRAY);
++                glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++                glVertexPointer(3, GL_FLOAT, 0, vtx);
++                glTexCoordPointer(2, GL_FLOAT, 0, tex);
++                glDrawArrays(GL_TRIANGLES, 0, 3);
++
++                glDisableClientState(GL_VERTEX_ARRAY);
++                glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++#else
+ 				glBegin(GL_TRIANGLES);
+ 				for(int j=0;j<3;j++)
+ 				{
+ 					glTexCoord2f(decaltexcoords[i][j][0], decaltexcoords[i][j][1]); glVertex3f(decalvertex[i][j].x,decalvertex[i][j].y,decalvertex[i][j].z);
+ 				}
+ 				glEnd();
++#endif
+ 			glPopMatrix();
+ 		}
+ 		for(i=numdecals-1;i>=0;i--){
+diff -r 97b303e79826 Source/Text.cpp
+--- a/Source/Text.cpp	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Text.cpp	Sat Apr 23 19:22:53 2011 -0400
+@@ -63,11 +63,72 @@
+ */
+ 	if (base)
+ 	{
++#if !defined(USE_GLES)
+ 		glDeleteLists(base, 512);
++#endif
+ 		base = 0;
+ 	}
+ }
+ 
++#if defined(USE_GLES)
++void Text::BuildFont()
++{
++    // Dummy Function
++}
++
++void Text::glPrintChar( int base, int len, char* str )
++{
++	float	cx;											// Holds Our X Character Coord
++	float	cy;											// Holds Our Y Character Coord
++    int     loop;
++    int     i;
++
++    glBindTexture(GL_TEXTURE_2D, FontTexture);			// Select Our Font Texture
++    for (i=0; i<len; i++)
++    {
++        loop = base + str[i];
++        if (loop < 256)
++        {
++            cx=float(loop%16)/16.0f;						// X Position Of Current Character
++            cy=float(loop/16)/16.0f;						// Y Position Of Current Character
++        }
++        else
++        {
++            cx=float((loop-256)%16)/16.0f;						// X Position Of Current Character
++            cy=float((loop-256)/16)/16.0f;						// Y Position Of Current Character
++        }
++
++        GLfloat tex[] = {
++            cx,         1-cy-0.0625f+.001,
++            cx+0.0625f, 1-cy-0.0625f+.001,
++            cx+0.0625f, 1-cy-.001,
++            cx,         1-cy-+.001
++        };
++        GLfloat vtx[] = {
++            0,  0,
++            16, 0,
++            16, 16,
++            0,  16
++        };
++
++        glEnableClientState(GL_VERTEX_ARRAY);
++        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        glVertexPointer(2, GL_FLOAT, 0, vtx);
++        glTexCoordPointer(2, GL_FLOAT, 0, tex);
++        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
++
++        glDisableClientState(GL_VERTEX_ARRAY);
++        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
++
++        if (loop < 256)
++            glTranslatef(10,0,0);						// Move To The Right Of The Character
++        else
++            glTranslatef(8,0,0);						// Move To The Right Of The Character
++    }
++}
++
++#else
+ void Text::BuildFont()								// Build Our Font Display List
+ {
+ 	float	cx;											// Holds Our X Character Coord
+@@ -84,6 +145,7 @@
+ 
+ //	base=glGenLists(256);								// Creating 256 Display Lists
+ 	base=glGenLists(512);								// Creating 256 Display Lists
++
+ 	glBindTexture(GL_TEXTURE_2D, FontTexture);			// Select Our Font Texture
+ 	for (loop=0; loop<512; loop++)						// Loop Through All 256 Lists
+ 	{
+@@ -97,6 +159,7 @@
+ 			cx=float((loop-256)%16)/16.0f;						// X Position Of Current Character
+ 			cy=float((loop-256)/16)/16.0f;						// Y Position Of Current Character
+ 		}
++
+ 		glNewList(base+loop,GL_COMPILE);				// Start Building A List
+ 		glBegin(GL_QUADS);							// Use A Quad For Each Character
+ 		glTexCoord2f(cx,1-cy-0.0625f+.001);			// Texture Coord (Bottom Left)
+@@ -115,6 +178,7 @@
+ 		glEndList();									// Done Building The Display List
+ 	}													// Loop Until All 256 Are Built
+ }
++#endif
+ 
+ void Text::glPrint(float x, float y, char *string, int set, float size, float width, float height)	// Where The Printing Happens
+ {
+@@ -140,10 +204,18 @@
+ 		glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+ 		glPushMatrix();										// Store The Modelview Matrix
+ 			glLoadIdentity();
++#if defined(USE_GLES)
++			glTranslatef(x,y,0);								// Position The Text (0,0 - Bottom Left)
++#else
+ 			glTranslated(x,y,0);								// Position The Text (0,0 - Bottom Left)
++#endif
+ 			glScalef(size,size,1);									// Reset The Modelview Matrix
++#if defined(USE_GLES)
++            glPrintChar(base-32+(128*set) + offset, end-start, &string[start] );
++#else
+ 			glListBase(base-32+(128*set) + offset);						// Choose The Font Set (0 or 1)
+ 			glCallLists(end-start,GL_BYTE,&string[start]);			// Write The Text To The Screen
++#endif
+ 			glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
+ 		glPopMatrix();										// Restore The Old Projection Matrix
+ 		glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
+@@ -188,7 +260,9 @@
+ {
+ 	if (base)
+ 	{
++#if !defined(USE_GLES)
+ 		glDeleteLists(base, 512);
++#endif
+ 		base = 0;
+ 	}
+ 	if (FontTexture) glDeleteTextures( 1, &FontTexture );
+diff -r 97b303e79826 Source/Text.h
+--- a/Source/Text.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/Text.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -43,6 +43,9 @@
+ 	void glPrintOutline(float x, float y, char *string, int set, float size, float width, float height,int start,int end);
+ 	void glPrintOutlined(float x, float y, char *string, int set, float size, float width, float height);
+ 	void glPrintOutlined(float r, float g, float b, float x, float y, char *string, int set, float size, float width, float height);
++#if defined(USE_GLES)
++    void glPrintChar( int base, int len, char* str );
++#endif
+ 
+ 	Text();
+ 	~Text();
+diff -r 97b303e79826 Source/WinDefs.h
+--- a/Source/WinDefs.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/WinDefs.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -85,6 +85,7 @@
+ Duration AbsoluteDeltaToDuration( AbsoluteTime& a, AbsoluteTime& b);
+ 
+ 
++
+ inline bool isnormal( double x)
+ {
+ 	int ret = _fpclass( x);
+@@ -115,6 +116,5 @@
+ 	return f;
+ }
+ 
+-
+ #endif
+ #endif
+diff -r 97b303e79826 Source/eglport.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Source/eglport.c	Sat Apr 23 19:22:53 2011 -0400
+@@ -0,0 +1,295 @@
++/**
++*
++* eglport.c/.h
++* Copyright (C) 2011 Scott Smith
++*
++* This program is free software: you can redistribute it and/or modify
++* it under the terms of the GNU General Public License as published by
++* the Free Software Foundation, either version 3 of the License, or
++* (at your option) any later version.
++*
++* This program is distributed in the hope that it will be useful,
++* but WITHOUT ANY WARRANTY; without even the implied warranty of
++* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++* GNU General Public License for more details.
++*
++* You should have received a copy of the GNU General Public License
++* along with this program. If not, see <http://www.gnu.org/licenses/>.
++*
++*/
++
++#include "eglport.h"
++
++/* Pandora VSync */
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++#include <linux/fb.h>
++
++
++#ifndef FBIO_WAITFORVSYNC
++#define FBIO_WAITFORVSYNC _IOW('F', 0x20, __u32)
++#endif
++int fbdev = -1;
++/* Pandora VSync End */
++
++#define EGLNativeWindowType NativeWindowType
++#define EGLNativeDisplayType NativeDisplayType
++
++EGLDisplay g_eglDisplay = 0;
++EGLConfig g_eglConfig = 0;
++EGLContext g_eglContext = 0;
++EGLSurface g_eglSurface = 0;
++
++#define g_totalConfigsIn 20
++int g_totalConfigsFound = 0;
++EGLConfig g_allConfigs[g_totalConfigsIn];
++Display *g_x11Display = NULL;
++
++
++/*======================================================
++ * Kill off any opengl specific details
++  ====================================================*/
++void EGL_Close()
++{
++    if( g_eglSurface || g_eglContext || g_eglDisplay )
++    {
++        eglMakeCurrent(g_eglDisplay, NULL, NULL, EGL_NO_CONTEXT);
++        eglDestroyContext(g_eglDisplay, g_eglContext);
++        eglDestroySurface(g_eglDisplay, g_eglSurface);
++        eglTerminate(g_eglDisplay);
++    }
++
++    g_eglSurface = 0;
++    g_eglContext = 0;
++    g_eglDisplay = 0;
++
++    if (g_x11Display)
++	XCloseDisplay(g_x11Display);
++
++    g_x11Display = NULL;
++
++    printf( "EGL Closed\n");
++
++    /* Pandora VSync */
++    close(fbdev);
++    fbdev = -1;
++    /* Pandora VSync End */
++}
++
++/*===========================================================
++Setup EGL context and surface
++===========================================================*/
++int EGL_Init( const int fsaa )
++{
++    FindAppropriateEGLConfigs(fsaa);
++
++    int configIndex = 0;
++
++	printf( "Config %d\n", configIndex );
++
++	if (!ConfigureEGL(g_allConfigs[configIndex]))
++	{
++		TestEGLError();
++		fprintf(stderr, "ERROR: Unable to initialise EGL. See previous error.\n");
++		return 1;
++	}
++
++    /* Pandora VSync */
++    fbdev = open ("/dev/fb0", O_RDONLY /* O_RDWR */ );
++    if ( fbdev < 0 ) {
++      fprintf ( stderr, "Couldn't open /dev/fb0 for vsync\n" );
++    }
++    /* Pandora VSync End */
++
++    return 0;
++}
++
++/*===========================================================
++Swap EGL buffers and update the display
++===========================================================*/
++void EGL_SwapBuffers( void )
++{
++    /* Pandora VSync */
++    if ( fbdev >= 0 ) {
++        int arg = 0;
++        ioctl( fbdev, FBIO_WAITFORVSYNC, &arg );
++    }
++    /* Pandora VSync End */
++	eglSwapBuffers(g_eglDisplay, g_eglSurface);
++}
++
++
++/*========================================================
++ *  Init base EGL
++ * ======================================================*/
++int EGL_Open( void )
++{
++    // use EGL to initialise GLES
++    printf( "EGL Open display\n" );
++    g_x11Display = XOpenDisplay(NULL);
++
++    if (!g_x11Display)
++    {
++        fprintf(stderr, "ERROR: unable to get display!\n");
++        return 0;
++    }
++
++    printf( "EGL Get display\n" );
++    g_eglDisplay = eglGetDisplay((EGLNativeDisplayType)g_x11Display);
++
++    if (g_eglDisplay == EGL_NO_DISPLAY)
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to initialise EGL display.\n");
++        return 0;
++    }
++
++    // Initialise egl
++    printf( "EGL Init\n" );
++    if (!eglInitialize(g_eglDisplay, NULL, NULL))
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to initialise EGL display.\n");
++        return 0;
++    }
++
++    return 1;
++}
++
++/*===========================================================
++Initialise OpenGL settings
++===========================================================*/
++int ConfigureEGL(EGLConfig config)
++{
++    // Cleanup in case of a reset
++    if( g_eglSurface || g_eglContext || g_eglDisplay )
++    {
++        eglMakeCurrent(g_eglDisplay, NULL, NULL, EGL_NO_CONTEXT);
++        eglDestroyContext(g_eglDisplay, g_eglContext);
++        eglDestroySurface(g_eglDisplay, g_eglSurface);
++    }
++
++    // Bind GLES and create the context
++    printf( "EGL Bind\n" );
++    eglBindAPI(EGL_OPENGL_ES_API);
++    if (!TestEGLError() )
++    {
++	return 0;
++    }
++
++    printf( "EGL Create Context\n" );
++    g_eglContext = eglCreateContext(g_eglDisplay, config, NULL, NULL);
++    if (g_eglContext == EGL_NO_CONTEXT)
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to create GLES context!\n");
++        return 0;
++    }
++
++    // Get the SDL window handle
++    SDL_SysWMinfo sysInfo; //Will hold our Window information
++    SDL_VERSION(&sysInfo.version); //Set SDL version
++    if(SDL_GetWMInfo(&sysInfo) <= 0)
++    {
++        TestEGLError();
++        fprintf( stderr, "ERROR: Unable to get window handle\n");
++        return 0;
++    }
++
++    printf( "EGL Create window surface\n" );
++    g_eglSurface = eglCreateWindowSurface(g_eglDisplay, config, (EGLNativeWindowType)sysInfo.info.x11.window, 0);
++
++    if ( g_eglSurface == EGL_NO_SURFACE)
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to create EGL surface!\n");
++        return 0;
++    }
++
++    printf( "EGL Make Current\n" );
++    if (eglMakeCurrent(g_eglDisplay,  g_eglSurface,  g_eglSurface, g_eglContext) == EGL_FALSE)
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to make GLES context current\n");
++        return 0;
++    }
++
++    printf( "EGL Done\n" );
++    return 1;
++}
++
++/*=======================================================
++* Detect available video resolutions
++=======================================================*/
++int FindAppropriateEGLConfigs(const int fsaa)
++{
++    static const EGLint s_configAttribs[] =
++    {
++          EGL_RED_SIZE,     5,
++          EGL_GREEN_SIZE,   6,
++          EGL_BLUE_SIZE,    5,
++          EGL_DEPTH_SIZE,       16,
++          EGL_SURFACE_TYPE,         EGL_WINDOW_BIT,
++          EGL_RENDERABLE_TYPE,      EGL_OPENGL_ES_BIT,
++	  EGL_SAMPLE_BUFFERS,	1,
++	  EGL_SAMPLES,		4,
++          EGL_NONE
++    };
++    static const EGLint s_configAttribsFSAA2[] =
++    {
++          EGL_RED_SIZE,     5,
++          EGL_GREEN_SIZE,   6,
++          EGL_BLUE_SIZE,    5,
++          EGL_DEPTH_SIZE,       16,
++          EGL_SURFACE_TYPE,         EGL_WINDOW_BIT,
++          EGL_RENDERABLE_TYPE,      EGL_OPENGL_ES_BIT,
++          EGL_SAMPLE_BUFFERS, 1,
++          EGL_SAMPLES, 2,
++          EGL_NONE
++    };
++    static const EGLint s_configAttribsFSAA4[] =
++    {
++          EGL_RED_SIZE,     5,
++          EGL_GREEN_SIZE,   6,
++          EGL_BLUE_SIZE,    5,
++          EGL_DEPTH_SIZE,       16,
++          EGL_SURFACE_TYPE,         EGL_WINDOW_BIT,
++          EGL_RENDERABLE_TYPE,      EGL_OPENGL_ES_BIT,
++          EGL_SAMPLE_BUFFERS, 1,
++          EGL_SAMPLES, 4,
++          EGL_NONE
++    };
++
++    GLboolean got_config;
++    if (fsaa == 2) {
++        got_config = eglChooseConfig(g_eglDisplay, s_configAttribsFSAA2,
++                    g_allConfigs, g_totalConfigsIn, &g_totalConfigsFound);
++    } else if (fsaa == 4) {
++        got_config = eglChooseConfig(g_eglDisplay, s_configAttribsFSAA4,
++                    g_allConfigs, g_totalConfigsIn, &g_totalConfigsFound);
++    } else {
++        got_config = eglChooseConfig(g_eglDisplay, s_configAttribs,
++                    g_allConfigs, g_totalConfigsIn, &g_totalConfigsFound);
++    }
++    if (got_config != EGL_TRUE || g_totalConfigsFound == 0)
++    {
++        TestEGLError();
++        fprintf(stderr, "ERROR: Unable to query for available configs.\n");
++        return 0;
++    }
++    fprintf(stderr, "Found %d available configs\n", g_totalConfigsFound);
++    return 1;
++}
++
++int TestEGLError( void )
++{
++	EGLint iErr = eglGetError();
++	while (iErr != EGL_SUCCESS)
++	{
++		printf("EGL failed (%d).\n", iErr);
++		return 0;
++	}
++
++	return 1;
++}
+diff -r 97b303e79826 Source/eglport.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/Source/eglport.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -0,0 +1,51 @@
++/**
++*
++* eglport.c/.h
++* Copyright (C) 2011 Scott Smith
++*
++* This program is free software: you can redistribute it and/or modify
++* it under the terms of the GNU General Public License as published by
++* the Free Software Foundation, either version 3 of the License, or
++* (at your option) any later version.
++*
++* This program is distributed in the hope that it will be useful,
++* but WITHOUT ANY WARRANTY; without even the implied warranty of
++* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++* GNU General Public License for more details.
++*
++* You should have received a copy of the GNU General Public License
++* along with this program. If not, see <http://www.gnu.org/licenses/>.
++*
++*/
++
++#ifndef EGLPORT_H
++#define EGLPORT_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++#include <stdio.h>
++#include <math.h>
++#include <GLES/gl.h>
++#include <EGL/egl.h>
++#include <SDL/SDL_syswm.h>
++
++void EGL_Close( void );
++int EGL_Open( void );
++#ifdef __cplusplus
++int EGL_Init( const int fsaa = 0 );
++#else
++int EGL_Init( const int fsaa  );
++#endif
++void EGL_SwapBuffers( void );
++
++int ConfigureEGL(EGLConfig config);
++int FindAppropriateEGLConfigs( int fsaa );
++int TestEGLError( void );
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif // EGLPORT_H
+diff -r 97b303e79826 Source/gamegl.h
+--- a/Source/gamegl.h	Sun May 16 15:41:05 2010 -0500
++++ b/Source/gamegl.h	Sat Apr 23 19:22:53 2011 -0400
+@@ -37,11 +37,24 @@
+   #undef Polygon
+ #endif
+ 
++#if defined(USE_GLES)
++#include "GLES/gl.h"
++#include "GLES/glues.h"
++#include "GLES/glext.h"
++
++#define GL_CLAMP        GL_CLAMP_TO_EDGE
++#define glOrtho         glOrthof
++#define glClearDepth    glClearDepthf
++
++#define BUFFER_OFFSET(i) ((char*)NULL + (i))
++#else
++
+ #define GL_GLEXT_PROTOTYPES 1
+ #include "GL/gl.h"
+ #include "GL/glu.h"
+ #include "GL/glext.h"
+ #include "MacCompatibility.h"
++#endif
+ 
+ #if !PLATFORM_MACOSX
+ struct RGBColor

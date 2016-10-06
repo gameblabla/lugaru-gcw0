@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lugaru
+Comment=Lugaru
+Exec=lugaru-bin
+Icon=icon
+Terminal=true
+Categories=games;
+X-OD-NeedsDownscaling=true
