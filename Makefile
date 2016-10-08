@@ -1,35 +1,22 @@
-macosx := false
-use_devil := false
-
 OPT += -O2 -IDependencies/GLUES -IDependencies/OpenAL/include/AL
 
 BINDIR := bin
 RUNDIR := .
 SRCDIR := Source
 SDLDIR := Dependencies/SDL12
-LIBPNGDIR := Dependencies/libpng
-JPEGLIBDIR := Dependencies/libjpeg
-ZLIBDIR := Dependencies/zlib
 OPENALDIR := Dependencies/OpenAL
 GLUDIR := Dependencies/GLUES
-LIBOGGDIR := Dependencies/libogg
-LIBVORBISDIR := Dependencies/libvorbis
 
-CXX := g++
-CC := gcc
-LD := g++
+CXX = g++
+CC = gcc
+LD = g++
 
-CFLAGS += -DPLATFORM_LINUX=1 -D_PC -DUSE_GLES
-LDFLAGS += `pkg-config --libs sdl` -lGLESv1_CM -lEGL
+CFLAGS += -DPLATFORM_LINUX=1 -DUSE_GLES
+LDFLAGS += -Wl,--start-group -lSDL -lGLESv1_CM -lEGL -lopenal -ljpeg -lpng -logg -lvorbis -lvorbisfile -lz -lm 
 INCLUDES += `pkg-config --cflags sdl`
 # Don't use bundled headers
 SDLDIR := /dummy
 
-ifeq ($(strip $(use_devil)),true)
-   LDFLAGS += ./libIL.so.1 ./libILU.so.1 ./libILUT.so.1
-endif
-
-LDFLAGS += -lopenal
 INCLUDES += `pkg-config --cflags openal`
 # Don't use bundled headers
 OPENALDIR := /dummy
@@ -58,7 +45,7 @@ endif
 DEFINES += -DUSE_OPENAL=1
 INCLUDES += -I$(OPENALDIR)/include -I$(LIBOGGDIR)/include -I$(LIBVORBISDIR)/include
 
-CFLAGS += -g -c $(OPT) $(INCLUDES) $(DEFINES) -fsigned-char -pipe -w
+CFLAGS += $(OPT) $(INCLUDES) $(DEFINES) -c -fsigned-char -pipe -w
 
 
 ifeq ($(strip $(EXEEXT)),)
@@ -101,103 +88,6 @@ SRCS := \
 SRCS := $(foreach f,$(SRCS),$(SRCDIR)/$(f))
 
 
-UNUSED_SRCS := \
-	DRIVER.CC \
-	MD5.CC \
-
-#    pnggccrd.c \
-#    pngvcrd.c \
-
-PNGSRCS := \
-    png.c \
-    pngerror.c \
-    pngget.c \
-    pngmem.c \
-    pngpread.c \
-    pngread.c \
-    pngrio.c \
-    pngrtran.c \
-    pngrutil.c \
-    pngset.c \
-    pngtrans.c \
-    pngwio.c \
-    pngwrite.c \
-    pngwtran.c \
-    pngwutil.c \
-
-PNGSRCS := $(foreach f,$(PNGSRCS),$(LIBPNGDIR)/$(f))
-
-#    jdphuff.c \
-#    jidctred.c \
-#    jcphuff.c \
-
-JPEGSRCS := \
-	jdapistd.c \
-    jdmaster.c \
-    jdapimin.c \
-    jcapimin.c \
-    jdmerge.c \
-    jdatasrc.c \
-    jdatadst.c \
-    jdcoefct.c \
-    jdcolor.c \
-    jddctmgr.c \
-    jdhuff.c \
-    jdinput.c \
-    jdmainct.c \
-    jdmarker.c \
-    jdpostct.c \
-    jdsample.c \
-    jdtrans.c \
-    jerror.c \
-    jidctflt.c \
-    jidctfst.c \
-    jidctint.c \
-    jmemmgr.c \
-    jutils.c \
-    jmemnobs.c \
-    jquant1.c \
-    jquant2.c \
-    jcomapi.c \
-    jcmarker.c \
-    jcapistd.c \
-    jcparam.c \
-    jcinit.c \
-    jcdctmgr.c \
-    jccoefct.c \
-    jcmainct.c \
-    jfdctflt.c \
-    jfdctint.c \
-    jfdctfst.c \
-    jchuff.c \
-    jcsample.c \
-    jcmaster.c \
-    jccolor.c \
-    jcprepct.c \
-    jcarith.c \
-    jdarith.c \
-    jaricom.c \
-
-JPEGSRCS := $(foreach f,$(JPEGSRCS),$(JPEGLIBDIR)/$(f))
-
-#	gzio.c \
-
-ZLIBSRCS = \
-	adler32.c \
-	compress.c \
-	crc32.c \
-	deflate.c \
-	infback.c \
-	inffast.c \
-	inflate.c \
-	inftrees.c \
-	trees.c \
-	uncompr.c \
-	zutil.c \
-
-ZLIBSRCS := $(foreach f,$(ZLIBSRCS),$(ZLIBDIR)/$(f))
-
-
 GLUSRCS := \
 glues_error.c \
 glues_mipmap.c \
@@ -209,45 +99,7 @@ glues_registry.c
 GLUSRCS := $(foreach f,$(GLUSRCS),$(GLUDIR)/$(f))
 
 
-OGGSRCS := \
-	bitwise.o \
-	framing.o
-
-OGGSRCS := $(foreach f,$(OGGSRCS),$(LIBOGGDIR)/src/$(f))
-
-VORBISSRCS := \
-	analysis.o \
-    bitrate.o \
-    block.o \
-    codebook.o \
-    envelope.o \
-    floor0.o \
-    floor1.o \
-    info.o \
-    lpc.o \
-    lsp.o \
-    mapping0.o \
-    mdct.o \
-    psy.o \
-    registry.o \
-    res0.o \
-    sharedbook.o \
-    smallft.o \
-    synthesis.o \
-    vorbisfile.o \
-    window.o
-
-VORBISSRCS := $(foreach f,$(VORBISSRCS),$(LIBVORBISDIR)/lib/$(f))
-
-ifeq ($(strip $(macosx)),false)
-	SRCS += $(GLUSRCS)
-endif
-
-ifeq ($(strip $(use_devil)),false)
-    SRCS += $(PNGSRCS) $(JPEGSRCS) $(ZLIBSRCS)
-endif
-
- SRCS += $(OGGSRCS) $(VORBISSRCS)
+SRCS += $(GLUSRCS)
 
 OBJS := $(SRCS:.CC=.o)
 OBJS := $(OBJS:.cc=.o)
@@ -283,7 +135,7 @@ $(BINDIR)/%.o : %.c
 
 $(EXE) : $(OBJS) $(APPOBJS)
 	@mkdir -p $(dir $@)
-	$(LD) -o $@ $(OBJS) $(APPOBJS) $(LDFLAGS)  $(POSTLDFLAGS)
+	$(LD) -o $@ $(OBJS) $(APPOBJS) $(LDFLAGS)
 
 clean:
 	rm -f $(BINDIR)/*.o
@@ -295,6 +147,3 @@ clean:
 	rm -f $(BINDIR)/$(LIBOGGDIR)/src/*.o
 	rm -f $(BINDIR)/$(LIBVORBISDIR)/lib/*.o
 	rm -f $(EXE)
-
-# end of makefile ...
- 

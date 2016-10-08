@@ -140,7 +140,7 @@ static SDL_Rect *hardcoded_resolutions[] = {
     NULL
 };
 
-
+SDL_Joystick* joystick;
 
 unsigned int resolutionDepths[8][2] = {0};
 
@@ -330,9 +330,7 @@ void ShutdownDSp ()
 
 void DrawGL (Game & game)
 {
-	printf("LETS A GO\n");
 	game.DrawGLScene();
-	printf("SUCESS\n");
 }
 
 
@@ -489,7 +487,7 @@ static void sdlEventProc(const SDL_Event &e, Game &game)
                 {
                     if (val == 0)
     				    g_button = true;
-    				buttons[val] = true;
+    				buttons[val] = 0;
                 }
 			}
 			return;
@@ -501,19 +499,25 @@ static void sdlEventProc(const SDL_Event &e, Game &game)
                 {
                     if (val == 0)
     				    g_button = false;
-    				buttons[val] = false;
+    				buttons[val] = 0;
                 }
 			}
             return;
 
         case SDL_KEYDOWN:
-            if (e.key.keysym.sym == SDLK_g)
+			if (e.key.keysym.sym == SDLK_LCTRL)
+			{
+    				buttons[0] = true;
+    				g_button = 1;
+			}
+			
+            /*if (e.key.keysym.sym == SDLK_g)
             {
                 if (e.key.keysym.mod & KMOD_CTRL)
                 {
                     skipkey = true;
 #if !defined(PANDORA)
-                    SDL_GrabMode mode = SDL_GRAB_ON;
+					SDL_GrabMode mode = SDL_GRAB_ON;
                     if ((SDL_GetVideoSurface()->flags & SDL_FULLSCREEN) == 0)
                     {
                         mode = SDL_WM_GrabInput(SDL_GRAB_QUERY);
@@ -531,7 +535,7 @@ static void sdlEventProc(const SDL_Event &e, Game &game)
                     skipkey = true;
                     SDL_WM_ToggleFullScreen(SDL_GetVideoSurface());
                 }
-            }
+            }*/
 
             if ((!skipkey) && (e.key.keysym.sym < SDLK_LAST))
             {
@@ -554,6 +558,12 @@ static void sdlEventProc(const SDL_Event &e, Game &game)
             return;
 
         case SDL_KEYUP:
+			if (e.key.keysym.sym == SDLK_LCTRL)
+			{
+    				buttons[0] = false;
+    				g_button = 0;
+			}
+			
             if (e.key.keysym.sym < SDLK_LAST)
             {
                 if (KeyTable[e.key.keysym.sym] != 0xffff)
@@ -572,7 +582,7 @@ static void sdlEventProc(const SDL_Event &e, Game &game)
             if ((mod & KMOD_CAPS) == 0)
                 ClearKey(MAC_CAPS_LOCK_KEY);
             return;
-    }
+    }                                                                                                   
 }
 
 
@@ -878,11 +888,8 @@ Boolean SetUp (Game & game)
 
     if (!SDL_WasInit(SDL_INIT_VIDEO))
     {
-        if (SDL_Init(SDL_INIT_VIDEO) == -1)
-        {
-            fprintf(stderr, "SDL_Init() failed: %s\n", SDL_GetError());
-            return false;
-        }
+		SDL_Init( SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+		SDL_JoystickEventState(SDL_ENABLE);
 
 
        /* SDL_Rect **res = SDL_ListModes(NULL, SDL_OPENGL);
@@ -1096,7 +1103,6 @@ void DoUpdate (Game & game)
 	static int count;
 	static float oldmult;
 
-	printf("MULTIPLY\n");
 	DoFrameRate(1);
 	if(multiplier>.6)multiplier=.6;
 
@@ -1118,11 +1124,8 @@ void DoUpdate (Game & game)
 	oldmult=multiplier;
 	multiplier/=(float)count;
 
-	printf("THE MOUSE\n");
 	DoMouse(game);
-	printf("OK !!!\n");
 
-	printf("HOW TO TICK\n");
 	game.TickOnce();
 
 	for(int i=0;i<count;i++)
@@ -1166,9 +1169,7 @@ void DoUpdate (Game & game)
 		num_channels = 0;
 	}
 */
-	printf("LETS DRAW\n");
 	DrawGL (game);
-	printf("GOOD\n");
 }
 
 // --------------------------------------------------------------------------
@@ -1329,7 +1330,7 @@ static inline void chdirToAppPath(const char *argv0)
 
 int main(int argc, char **argv)
 {
-	Uint8 *keystate;
+	short x_joy, y_joy;
 #ifndef __MINGW32__
     _argc = argc;
     _argv = argv;
@@ -1345,6 +1346,7 @@ int main(int argc, char **argv)
 	memset( &g_theKeys, 0, sizeof( KeyMap));
 
     initSDLKeyTable();
+  
 
 	try
 	{
@@ -1361,22 +1363,42 @@ int main(int argc, char **argv)
 			if (!SetUp (game))
                 return 42;
                 
-			printf("MAKING SOME PROGRESS\n");
-
 			while (!gDone&&!game.quit&&(!game.tryquit))
 			{
-				keystate = SDL_GetKeyState(NULL);
 				// check windows messages
 				game.deltah = 0;
 				game.deltav = 0;
 				
-
-				if (keystate[SDLK_ESCAPE]) 
+#ifdef GCW
+				joystick = SDL_JoystickOpen(0);
+#else
+				if (SDL_NumJoysticks() > 0)
 				{
-					gDone = 1;
-					game.quit = 1;
-					game.tryquit = 1;
+					joystick = SDL_JoystickOpen(0);
 				}
+#endif
+				
+				x_joy = SDL_JoystickGetAxis(joystick, 0);
+				y_joy = SDL_JoystickGetAxis(joystick, 1);
+				
+				if (x_joy < -10000)
+				{
+					game.deltah -= 2;
+				}
+				else if (x_joy > 10000)
+				{
+					game.deltah += 2;	
+				}
+
+				if (y_joy < -10000)
+				{
+					game.deltav -= 2;
+				}
+				else if (y_joy > 10000)
+				{
+					game.deltav += 2;
+				}
+			
 				SDL_Event e;
 				
 				// message pump
@@ -1390,6 +1412,8 @@ int main(int argc, char **argv)
 					sdlEventProc(e, game);
 				}
 					// game
+    
+				SDL_JoystickUpdate();    
 				DoUpdate(game);
 			}
 

@@ -243,7 +243,6 @@ long long Game::MD5_string (char *string){
 
 int Game::DrawGLScene(void)
 {	
-	printf("OH NO, HERE I CUM\n");
 	static float texcoordwidth,texcoordheight;
 	static float texviewwidth, texviewheight;
 	static int i,j,k,l;
