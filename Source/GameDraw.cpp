@@ -263,13 +263,11 @@ int Game::DrawGLScene(void)
 
 	glColorMask( 1.0, 1.0, 1.0, 1.0 );
 
-	printf("1.\n");
 	if(freeze||winfreeze||(mainmenu&&gameon)||(!gameon&&gamestarted)){
 		tempmult=multiplier;
 		multiplier=0;
 	}
 
-	printf("2.\n");
 	if(!mainmenu){
 		if(editorenabled){
 			numboundaries=mapradius*2;
@@ -2546,17 +2544,14 @@ int Game::DrawGLScene(void)
 		}
 	}
 
-	printf("3.\n");
 	if(freeze||winfreeze||(mainmenu&&gameon)||(!gameon&&gamestarted)||(mainmenu&&gameon)||(!gameon&&gamestarted)||(!gameon&&gamestarted)){
 		multiplier=tempmult;
 	}
 
-	printf("4.\n");
-	if(mainmenu){
-
+	if(mainmenu)
+	{
         // !!! FIXME: hack: clamp framerate in menu so text input works correctly on fast systems.
         SDL_Delay(15);
-		printf("5.\n");
 #if !defined(USE_GLES)
 		glDrawBuffer(GL_BACK);
 		glReadBuffer(GL_BACK);
@@ -2568,7 +2563,6 @@ int Game::DrawGLScene(void)
 		temptexdetail=texdetail;
 		if(texdetail>2)texdetail=2;
 		
-		printf("6.\n");
 		if(mainmenu!=oldmainmenu&&oldmainmenu!=0){
 			if(mainmenu==1){
 				LoadTexture(":Data:Textures:Newgame.png",&Mainmenuitems[1],0,0);
@@ -2592,7 +2586,6 @@ int Game::DrawGLScene(void)
 			}
 		}
 		
-		printf("7.\n");
 		if(lastcheck>.5||oldmainmenu!=mainmenu){
 			if(mainmenu==5){
 				ifstream ipstream(ConvertFileName(":Data:Campaigns:main.txt"));
@@ -2672,11 +2665,9 @@ int Game::DrawGLScene(void)
 		if(mainmenu==5){
 			lastcheck=0;
 		}
-		printf("8.\n");
 		texdetail=temptexdetail;
 
 		/*if(mainmenu!=0)*/oldmainmenu=mainmenu;
-		printf("9.\n");
 		if(mainmenu==3||mainmenu==4||mainmenu==5||mainmenu==6||mainmenu==7||mainmenu==8||mainmenu==9||mainmenu==10||mainmenu==119||mainmenu==13||mainmenu==17){
 			glClear(GL_DEPTH_BUFFER_BIT);
 			glEnable(GL_ALPHA_TEST);
@@ -2764,7 +2755,6 @@ int Game::DrawGLScene(void)
 			glPopMatrix();
 			glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
 
-			printf("10.\n");
 			if(mainmenu==3){			
 				nummenuitems=12;
 				if((float)newscreenwidth>(float)newscreenheight*1.61||(float)newscreenwidth<(float)newscreenheight*1.59)sprintf (menustring[0], "Resolution: %d*%d",(int)newscreenwidth,(int)newscreenheight);
@@ -2876,7 +2866,6 @@ int Game::DrawGLScene(void)
 				movey[8]=0;
 			}
 
-			printf("11.\n");
 			if(mainmenu==4){			
 				nummenuitems=10;
 				if(keyselect!=0)sprintf (menustring[0], "Forwards: %s",KeyToChar(forwardkey));
@@ -2970,7 +2959,7 @@ int Game::DrawGLScene(void)
 				movex[9]=0;
 				movey[9]=0;
 			}
-			printf("12.\n");
+
 			if(mainmenu==5){			
 				nummenuitems=7+accountcampaignchoicesmade[accountactive]+campaignchoicenum;
 
@@ -3095,7 +3084,7 @@ int Game::DrawGLScene(void)
 						movey[11]=0;*/
 			}
 
-			printf("13.\n");
+
 			if(mainmenu==6){			
 				nummenuitems=3;
 
@@ -3148,7 +3137,7 @@ int Game::DrawGLScene(void)
 				movey[5]=0;
 			}
 
-			printf("14.\n");
+
 			if(mainmenu==7){			
 				nummenuitems=numaccounts+2;
 
@@ -3190,7 +3179,7 @@ int Game::DrawGLScene(void)
 					movex[num]=0;
 					movey[num]=0;
 			}
-			printf("15.\n");
+
 			if(mainmenu==8){			
 				nummenuitems=3;
 
@@ -3219,7 +3208,7 @@ int Game::DrawGLScene(void)
 				movey[2]=0;
 			}
 			
-			printf("16.\n");
+
 			if(mainmenu==9){			
 				int tempncl;
 				//tempncl=numchallengelevels;
@@ -3271,7 +3260,7 @@ int Game::DrawGLScene(void)
 
 			}
 			
-			printf("17.\n");
+
 			if(mainmenu==11){			
 				nummenuitems=2+numchallengelevels;
 				char temp[255];
@@ -3318,7 +3307,7 @@ int Game::DrawGLScene(void)
 
 			}
 			
-			printf("18.\n");
+
 			if(mainmenu==10){			
 				nummenuitems=6;
 				char temp[255];
@@ -3413,7 +3402,7 @@ int Game::DrawGLScene(void)
 			}
 		}
 
-		printf("19.\n");
+
 		if(mainmenu==13){	
 			nummenuitems=2;
 			char temp[255];
@@ -3435,7 +3424,7 @@ int Game::DrawGLScene(void)
 			movey[1]=0;
 		}
 		
-		printf("20.\n");
+
 		if(mainmenu==1||mainmenu==2){
 			nummenuitems=7;
 			startx[0]=150;
@@ -3596,7 +3585,6 @@ int Game::DrawGLScene(void)
 
 		selected=-1;
 
-		printf("21.\n");
 		if(mainmenu==1||mainmenu==2)
 			for(i=1;i<4;i++){
 				if((mousecoordh/screenwidth*640)>startx[i]&&(mousecoordh/screenwidth*640)<endx[i]&&480-(mousecoordv/screenheight*480)>starty[i]&&480-(mousecoordv/screenheight*480)<endy[i]){
@@ -3604,7 +3592,6 @@ int Game::DrawGLScene(void)
 				}
 			}
 
-			printf("22.\n");
 			if(mainmenu==3||mainmenu==4||mainmenu==5||mainmenu==6||mainmenu==7||mainmenu==8||mainmenu==9||mainmenu==10||mainmenu==11||mainmenu==13||mainmenu==17)
 				for(i=0;i<nummenuitems;i++){
 					if((mousecoordh/screenwidth*640)>startx[i]&&(mousecoordh/screenwidth*640)<endx[i]&&480-(mousecoordv/screenheight*480)>starty[i]&&480-(mousecoordv/screenheight*480)<endy[i]){
@@ -4141,7 +4128,6 @@ int Game::DrawGLScene(void)
 							}
 						}
 						
-						printf("23.\n");
 						glMatrixMode(GL_PROJECTION);						// Select The Projection Matrix
 						glPopMatrix();
 						glMatrixMode(GL_MODELVIEW);							// Select The Modelview Matrix
@@ -4287,7 +4273,6 @@ int Game::DrawGLScene(void)
 								}	
 	}
 
-	printf("24.\n");
 	if(freeze||winfreeze||(mainmenu&&gameon)||(!gameon&&gamestarted)||(!gameon&&gamestarted)){
 		tempmult=multiplier;
 		multiplier=0;
@@ -4301,7 +4286,6 @@ int Game::DrawGLScene(void)
   }
 
 
-	printf("25.\n");
 	//myassert(glGetError() == GL_NO_ERROR);
 #if !defined(USE_GLES)
 	glDrawBuffer(GL_BACK);
@@ -4313,7 +4297,6 @@ int Game::DrawGLScene(void)
 
 	if(drawtoggle==2)drawtoggle=0;
 
-	printf("26.\n");
 	if(freeze||winfreeze||(mainmenu&&gameon)||(!gameon&&gamestarted)){
 		multiplier=tempmult;
 	}

@@ -15,7 +15,7 @@ CC = mipsel-linux-gcc
 LD = mipsel-linux-g++
 
 CFLAGS += -DPLATFORM_LINUX=1 -DGCW -DUSE_GLES
-LDFLAGS +=  -lSDL -lopenal -ljpeg -lpng -logg -lvorbis -lvorbisfile -lz -lGLESv1_CM -lGLESv2 -lEGL -lm -lc 
+LDFLAGS +=  -lSDL -lopenal -ljpeg -lpng -logg -lvorbis -lvorbisfile -lz -lGLESv1_CM -lEGL -lm -lc
 INCLUDES +=
 # Don't use bundled headers
 SDLDIR := /dummy

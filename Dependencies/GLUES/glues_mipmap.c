@@ -734,9 +734,9 @@ static GLboolean legalFormat(GLenum format)
 {
    switch(format)
    {
-      case GL_ALPHA:
+      //case GL_ALPHA:
       case GL_RGB:
-      case GL_RGBA:
+      //case GL_RGBA:
       case GL_LUMINANCE:
       case GL_LUMINANCE_ALPHA:
            return GL_TRUE;
@@ -794,11 +794,11 @@ static GLboolean isLegalFormatForPackedPixelType(GLenum format, GLenum type)
    /* 4_4_4_4 & 5_5_5_1
     * are only compatible with RGBA
     */
-   if ((type==GL_UNSIGNED_SHORT_4_4_4_4 || type==GL_UNSIGNED_SHORT_5_5_5_1) &&
+   /*if ((type==GL_UNSIGNED_SHORT_4_4_4_4 || type==GL_UNSIGNED_SHORT_5_5_5_1) &&
        (format != GL_RGBA))
    {
       return GL_FALSE;
-   }
+   }*/
 
    return GL_TRUE;
 } /* isLegalFormatForPackedPixelType() */

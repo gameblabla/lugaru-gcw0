@@ -421,58 +421,60 @@ void Game::LoadSounds()
 
 void Game::LoadTexture(const char *fileName, GLuint *textureid,int mipmap, bool hasalpha)
 {
-	GLuint		type;
-
-	LOGFUNC;
-
-	LOG(std::string("Loading texture...") + fileName);
-
-	// Fix filename so that is os appropreate
-	char * fixedFN = ConvertFileName(fileName);
-
-	unsigned char fileNamep[256];
-	CopyCStringToPascal(fixedFN, fileNamep);
-	//Load Image
-	upload_image( fileNamep ,hasalpha);
-
-//	std::string fname(fileName);
-//	std::transform(fname.begin(), fname.end(), tolower);
-//	TexIter it = textures.find(fname);
-
-	//Is it valid?
-	if(1==1)
-	//if(textures.end() == it)
-	{
-		//Alpha channel?
+    GLuint      type;
+ 
+    LOGFUNC;
+ 
+    LOG(std::string("Loading texture...") + fileName);
+    
+    mipmap = 0;
+ 
+    // Fix filename so that is os appropreate
+    char * fixedFN = ConvertFileName(fileName);
+ 
+    unsigned char fileNamep[256];
+    CopyCStringToPascal(fixedFN, fileNamep);
+    //Load Image
+    upload_image( fileNamep ,hasalpha);
+ 
+    std::string fname(fileName);
+    std::transform(fname.begin(), fname.end(), fname.begin(), ::tolower);
+    TexIter it = textures.find(fname);
+ 
+    //Is it valid?
+    if(textures.end() == it)
+    {
+        //Alpha channel?
 		if ( texture.bpp == 24 )
-			type = GL_RGB;
+            type = GL_RGB;
 		else
-			type = GL_RGBA;
+            type = GL_RGBA;
+        //type = GL_RGB;
+ 
+        glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+ 
+        if(!*textureid)glGenTextures( 1, textureid );
+        glTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+ 
+        glBindTexture( GL_TEXTURE_2D, *textureid);
+        
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+        glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+        
+        /*if(trilinear)if(mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+        if(!trilinear)if(mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
+        if(!mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );*/
+		
+        glTexImage2D(GL_TEXTURE_2D, 0, type, texture.sizeX, texture.sizeY, 0, type, GL_UNSIGNED_BYTE, texture.data);
+		//gluBuild2DMipmaps( GL_TEXTURE_2D, type, texture.sizeX, texture.sizeY, type, GL_UNSIGNED_BYTE, texture.data );
 
-		glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+        textures.insert(std::make_pair(fname, *textureid));
+    }
+    else
+    {
+        *textureid = it->second;
+    }
 
-		if(!*textureid)glGenTextures( 1, textureid );
-		glTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-
-		glBindTexture( GL_TEXTURE_2D, *textureid);
-		glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		if(trilinear)if(mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
-		if(!trilinear)if(mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
-		if(!mipmap)glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-
-		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.sizeX, texture.sizeY, 0,
-		//          GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, texture.data);
-
-		//gluBuild2DMipmaps( GL_TEXTURE_2D, type, texture.sizeX, texture.sizeY, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, texture.data );
-
-		gluBuild2DMipmaps( GL_TEXTURE_2D, type, texture.sizeX, texture.sizeY, type, GL_UNSIGNED_BYTE, texture.data );
-
-//		textures.insert(std::make_pair(fname, *textureid));
-	}
-//	else
-//	{
-//		*textureid = it->second;
-//	}
 }
 
 void Game::LoadTextureSave(const char *fileName, GLuint *textureid,int mipmap,GLubyte *array, int *skinsize)
@@ -491,14 +493,12 @@ void Game::LoadTextureSave(const char *fileName, GLuint *textureid,int mipmap,GL
 	//Load Image
 	upload_image( fileNamep ,0);
 	//LoadTGA( fileName );
-
-//	std::string fname(fileName);
-//	std::transform(fname.begin(), fname.end(), tolower);
-//	TexIter it = textures.find(fname);
+    std::string fname(fileName);
+    std::transform(fname.begin(), fname.end(), fname.begin(), ::tolower);
+	TexIter it = textures.find(fname);
 
 	//Is it valid?
-	if(1==1)
-	//if(textures.end() == it)
+	if(textures.end() == it)
 	{
 		bytesPerPixel=texture.bpp/8;
 
@@ -531,12 +531,12 @@ void Game::LoadTextureSave(const char *fileName, GLuint *textureid,int mipmap,GL
 
 		gluBuild2DMipmaps( GL_TEXTURE_2D, type, texture.sizeX, texture.sizeY, GL_RGB, GL_UNSIGNED_BYTE, array );
 
-//		textures.insert(std::make_pair(fname, *textureid));
+		textures.insert(std::make_pair(fname, *textureid));
 	}
-//	else
-//	{
-//		*textureid = it->second;
-//	}
+	else
+	{
+		*textureid = it->second;
+	}
 }
 
 void Game::LoadSave(const char *fileName, GLuint *textureid,bool mipmap,GLubyte *array, int *skinsize)
@@ -1406,9 +1406,6 @@ void Game::InitGame()
 	OPENAL_Stream_SetMode(strm[stream_music2], OPENAL_LOOP_NORMAL);
 
 	//}
-	printf("ALMOST DONE\n");
-
-
 	FadeLoadingScreen(90);
 
 
@@ -1445,8 +1442,6 @@ void Game::InitGame()
 	newdetail=detail;
 	newscreenwidth=screenwidth;
 	newscreenheight=screenheight;
-
-	printf("FUCK YEAH ! \n");
 
 	/*
 	float gLoc[3]={0,0,0};

@@ -59,14 +59,14 @@ leftarrow
 Right key:
 rightarrow
 Jump key:
-space
+option
 Crouch key:
 shift
 Draw key:
-e
+tab
 Throw key:
-q
+backspace
 Attack key:
-mouse1
+control
 Chat key:
 unknown
